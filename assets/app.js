@@ -173,6 +173,7 @@
     else if (route.name === 'archivio') renderArchivio();
     else if (route.name === 'scadenzario') renderScadenzario();
     else if (route.name === 'riepilogo') renderRiepilogoPeriodo();
+    else if (route.name === 'statistiche') renderStatistiche();
     else renderDashboard();
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
@@ -259,9 +260,10 @@
 
     // --- Strumenti ---
     html += `<div class="section-title" style="margin-top:22px">🧰 Strumenti</div>`;
-    html += `<div class="tools-grid">
+    html += `<div class="tools-grid tools-3">
       <button class="tool-btn" data-action="open-scadenzario"><span class="ti">💰</span><span>Scadenzario<br>pagamenti</span></button>
-      <button class="tool-btn" data-action="open-riepilogo"><span class="ti">📅</span><span>Riepilogo IVA<br>per periodo</span></button>
+      <button class="tool-btn" data-action="open-riepilogo"><span class="ti">📅</span><span>Riepilogo<br>IVA</span></button>
+      <button class="tool-btn" data-action="open-statistiche"><span class="ti">📈</span><span>Statistiche<br>azienda</span></button>
     </div>`;
 
     html += `</section>`;
@@ -1001,6 +1003,9 @@
       // --- nuove funzionalità ---
       case 'open-scadenzario': releaseUrls(); route = { name: 'scadenzario' }; render(); break;
       case 'open-riepilogo': releaseUrls(); route = { name: 'riepilogo' }; render(); break;
+      case 'open-statistiche': releaseUrls(); route = { name: 'statistiche' }; render(); break;
+      case 'set-anno-stats': statsAnno = t.dataset.anno ? parseInt(t.dataset.anno, 10) : null; render(); break;
+      case 'stampa-report': stampaReportAnnuale(statsAnno); break;
       case 'toggle-incasso': toggleIncasso(id); break;
       case 'toggle-pagato': togglePagato(owner, id); break;
       case 'set-anno': riepilogoAnno = parseInt(t.dataset.anno, 10); render(); break;
@@ -1645,6 +1650,170 @@
     h += `</tbody></table>`;
     h += `<p style="font-size:11px;color:#666">IVA netta = IVA a debito − IVA a credito. "(cr.)" indica un credito IVA a tuo favore.</p>`;
     openPrint('Riepilogo IVA ' + year, h);
+  }
+
+  /* ------------------------------ Statistiche ----------------------------- */
+  let statsAnno = null; // null = tutti gli anni
+
+  function statsPeriodo(year) {
+    const inYear = d => year == null || annoOf(d) === year;
+    let fatturato = 0, costi = 0, ivaDeb = 0, ivaCre = 0, matImp = 0, uteImp = 0, nFatture = 0, nSpese = 0, daIncassare = 0, daPagare = 0;
+    const perCat = {};
+    const cantieriFatt = new Set();
+    state.cantieri.forEach(c => {
+      const f = c.fatturaOrigine;
+      if (f && inYear(f.data)) {
+        fatturato += num(f.imponibile); ivaDeb += ivaOf(f.imponibile, f.aliquota); nFatture++;
+        const cat = c.categoriaId || 'nessuna';
+        perCat[cat] = perCat[cat] || { fatturato: 0, count: 0 };
+        perCat[cat].fatturato += num(f.imponibile); perCat[cat].count++;
+        if (!f.incassato) daIncassare += totaleOf(f.imponibile, f.aliquota);
+        cantieriFatt.add(c.id);
+      }
+      (c.spese || []).forEach(s => {
+        if (!inYear(s.data)) return;
+        costi += num(s.imponibile); ivaCre += ivaOf(s.imponibile, s.aliquota); nSpese++;
+        if (s.tipo === 'utensile') uteImp += num(s.imponibile); else matImp += num(s.imponibile);
+        if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota);
+      });
+    });
+    (state.speseGenerali || []).forEach(s => {
+      if (!inYear(s.data)) return;
+      costi += num(s.imponibile); ivaCre += ivaOf(s.imponibile, s.aliquota); nSpese++;
+      if (s.tipo === 'utensile') uteImp += num(s.imponibile); else matImp += num(s.imponibile);
+      if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota);
+    });
+    return {
+      fatturato, costi, margine: fatturato - costi, ivaDeb, ivaCre, ivaNetta: ivaDeb - ivaCre,
+      matImp, uteImp, nFatture, nSpese, perCat, daIncassare, daPagare,
+      nCantieri: cantieriFatt.size,
+      margineMedio: cantieriFatt.size ? (fatturato - costi) / cantieriFatt.size : 0,
+      marginePct: fatturato ? (fatturato - costi) / fatturato * 100 : 0
+    };
+  }
+
+  function barChart(items) {
+    const max = Math.max(1, ...items.map(i => i.value));
+    if (!items.length) return `<p class="mini-note">Nessun dato nel periodo.</p>`;
+    return `<div class="bars">` + items.map(i => `
+      <div class="bar-row">
+        <div class="bar-label">${esc(i.label)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.max(3, i.value / max * 100).toFixed(1)}%;background:${i.color || 'var(--primary)'}"></div></div>
+        <div class="bar-val">${euro(i.value)}</div>
+      </div>`).join('') + `</div>`;
+  }
+
+  function renderStatistiche() {
+    const anni = anniDisponibili();
+    const st = statsPeriodo(statsAnno);
+
+    let html = `<section class="view">`;
+    html += `<div class="detail-header">
+      <button class="back-btn" data-action="back">←</button>
+      <div style="flex:1 1 auto"><h2>📈 Statistiche azienda</h2>
+      <div class="dh-sub">Fatturato, costi e margini</div></div>
+    </div>`;
+
+    // selettore anno (Tutti + anni)
+    html += `<div class="chips">`;
+    html += `<button class="chip ${statsAnno == null ? 'active' : ''}" data-action="set-anno-stats" data-anno="">Tutti gli anni</button>`;
+    html += anni.map(y => `<button class="chip ${y === statsAnno ? 'active' : ''}" data-action="set-anno-stats" data-anno="${y}">${y}</button>`).join('');
+    html += `</div>`;
+
+    // KPI
+    html += `<div class="summary-grid" style="margin-top:8px">
+      <div class="stat"><div class="label">💶 Fatturato</div><div class="value" style="color:var(--primary)">${euro(st.fatturato)}</div><div class="hint">imponibile, ${st.nFatture} fatture</div></div>
+      <div class="stat"><div class="label">🧾 Costi</div><div class="value" style="color:var(--warn)">${euro(st.costi)}</div><div class="hint">${st.nSpese} spese</div></div>
+      <div class="stat"><div class="label">📊 Margine</div><div class="value" style="color:var(--ok)">${euro(st.margine)}</div><div class="hint">${st.marginePct.toFixed(0)}% sul fatturato</div></div>
+      <div class="stat"><div class="label">🏗️ Cantieri</div><div class="value">${st.nCantieri}</div><div class="hint">con fattura nel periodo</div></div>
+    </div>`;
+
+    // Fatturato per categoria
+    const catItems = Object.keys(st.perCat).map(k => ({
+      label: k === 'nessuna' ? 'Senza categoria' : categoriaNome(k),
+      value: st.perCat[k].fatturato,
+      color: k === 'nessuna' ? '#94a3b8' : categoriaColore(k)
+    })).sort((a, b) => b.value - a.value);
+    html += `<div class="section-title">🏷️ Fatturato per categoria</div>`;
+    html += `<div class="card">${barChart(catItems)}</div>`;
+
+    // Ripartizione costi materiali/utensili
+    html += `<div class="section-title">🛠️ Costi: materiali vs utensili</div>`;
+    html += `<div class="card">${barChart([
+      { label: '📦 Materiali', value: st.matImp, color: 'var(--primary)' },
+      { label: '🔧 Utensili', value: st.uteImp, color: 'var(--accent)' }
+    ])}</div>`;
+
+    // Altri indicatori
+    html += `<div class="section-title">📌 Altri indicatori</div>`;
+    html += `<div class="card">`;
+    html += infoRow('Margine medio per cantiere', euro(st.margineMedio));
+    html += infoRow('IVA netta del periodo', euro(Math.abs(st.ivaNetta)) + (st.ivaNetta < 0 ? ' (a credito)' : ' (da versare)'));
+    html += infoRow('Da incassare', euro(st.daIncassare));
+    html += infoRow('Da pagare', euro(st.daPagare));
+    html += `</div>`;
+
+    // Report PDF
+    html += `<div class="section-title">📤 Report</div>`;
+    html += `<button class="btn btn-primary btn-block" data-action="stampa-report">🖨️ ${statsAnno ? 'Report ' + statsAnno : 'Report completo'} — stampa / PDF</button>`;
+
+    html += `</section>`;
+    app().innerHTML = html;
+    document.getElementById('fab').classList.add('hidden');
+  }
+
+  function stampaReportAnnuale(year) {
+    const st = statsPeriodo(year);
+    const titolo = year ? 'Report annuale ' + year : 'Report complessivo';
+    let h = `<h3>Riepilogo economico</h3>`;
+    h += `<table><tbody>
+      <tr><td>Fatturato (imponibile)</td><td class="n">${euro(st.fatturato)}</td></tr>
+      <tr><td>Costi materiali e utensili (imponibile)</td><td class="n">${euro(st.costi)}</td></tr>
+      <tr class="tot"><td>Margine (ricavi − costi)</td><td class="n">${euro(st.margine)} (${st.marginePct.toFixed(0)}%)</td></tr>
+      <tr><td>Cantieri fatturati</td><td class="n">${st.nCantieri}</td></tr>
+      <tr><td>Margine medio per cantiere</td><td class="n">${euro(st.margineMedio)}</td></tr>
+    </tbody></table>`;
+
+    h += `<h3>Liquidazione IVA</h3>`;
+    h += `<table><tbody>
+      <tr><td>IVA a debito (fatture)</td><td class="n">${euro(st.ivaDeb)}</td></tr>
+      <tr><td>IVA a credito (spese)</td><td class="n">${euro(st.ivaCre)}</td></tr>
+      <tr class="tot"><td>IVA netta ${st.ivaNetta < 0 ? '(a credito)' : '(da versare)'}</td><td class="n">${euro(Math.abs(st.ivaNetta))}</td></tr>
+    </tbody></table>`;
+
+    // dettaglio trimestrale se anno specifico
+    if (year) {
+      const tri = datiTrimestrali(year);
+      const nomi = ['1° trim.', '2° trim.', '3° trim.', '4° trim.'];
+      h += `<h3>IVA per trimestre ${year}</h3>`;
+      h += `<table><thead><tr><th>Periodo</th><th class="n">Debito</th><th class="n">Credito</th><th class="n">Netta</th></tr></thead><tbody>`;
+      tri.forEach((t, i) => { const n = t.debito - t.credito; h += `<tr><td>${nomi[i]}</td><td class="n">${euro(t.debito)}</td><td class="n">${euro(t.credito)}</td><td class="n">${euro(Math.abs(n))}${n < 0 ? ' (cr.)' : ''}</td></tr>`; });
+      h += `</tbody></table>`;
+    }
+
+    // fatturato per categoria
+    const cats = Object.keys(st.perCat).map(k => ({ nome: k === 'nessuna' ? 'Senza categoria' : categoriaNome(k), v: st.perCat[k].fatturato, n: st.perCat[k].count })).sort((a, b) => b.v - a.v);
+    if (cats.length) {
+      h += `<h3>Fatturato per categoria</h3>`;
+      h += `<table><thead><tr><th>Categoria</th><th class="n">Cantieri</th><th class="n">Fatturato</th></tr></thead><tbody>`;
+      cats.forEach(c => h += `<tr><td>${esc(c.nome)}</td><td class="n">${c.n}</td><td class="n">${euro(c.v)}</td></tr>`);
+      h += `</tbody></table>`;
+    }
+
+    // elenco cantieri del periodo
+    const inYear = d => year == null || annoOf(d) === year;
+    const righe = state.cantieri.filter(c => c.fatturaOrigine && inYear(c.fatturaOrigine.data));
+    if (righe.length) {
+      h += `<h3>Dettaglio cantieri</h3>`;
+      h += `<table><thead><tr><th>Cantiere</th><th>Cliente</th><th class="n">Fatturato</th><th class="n">Costi</th><th class="n">Margine</th><th class="n">IVA netta</th></tr></thead><tbody>`;
+      righe.forEach(c => {
+        const r = cantiereRiepilogo(c);
+        h += `<tr><td>${esc(c.nome)}</td><td>${esc(c.cliente || '')}</td><td class="n">${euro(r.ricavoImponibile)}</td><td class="n">${euro(r.costiImponibile)}</td><td class="n">${euro(r.margine)}</td><td class="n">${euro(Math.abs(r.ivaNetta))}</td></tr>`;
+      });
+      h += `</tbody></table>`;
+    }
+
+    openPrint(titolo, h);
   }
 
   document.addEventListener('DOMContentLoaded', boot);

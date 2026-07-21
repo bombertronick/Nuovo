@@ -41,6 +41,8 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 - 📝 **Preventivi** — crea un preventivo con voci di lavoro e, quando il cliente
   accetta, **convertilo in fattura d'origine** con un tocco.
 - 🖼️ **Galleria foto per cantiere** — documenta i lavori (prima/durante/dopo).
+- 📈 **Statistiche azienda** — fatturato per categoria, ripartizione costi
+  (materiali/utensili), margine medio e **report annuale/complessivo in PDF**.
 
 ---
 
