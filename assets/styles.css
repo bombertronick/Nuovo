@@ -1,0 +1,481 @@
+/* =========================================================================
+   Gestionale Cantieri — Foglio di stile
+   Mobile-first, tema chiaro/scuro automatico. Nessuna dipendenza esterna.
+   ========================================================================= */
+
+:root {
+  --primary: #1e5eff;
+  --primary-dark: #1546c4;
+  --primary-soft: #e8efff;
+  --accent: #ffb300;        /* giallo "elettrico" */
+  --accent-dark: #e09e00;
+
+  --ok: #16a34a;
+  --ok-soft: #e6f6ec;
+  --warn: #d97706;
+  --warn-soft: #fdf1dd;
+  --danger: #dc2626;
+  --danger-soft: #fbe6e6;
+
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-soft: #64748b;
+  --shadow: 0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .06);
+  --shadow-lg: 0 10px 30px rgba(15, 23, 42, .12);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #5b8bff;
+    --primary-dark: #3b6ff0;
+    --primary-soft: #16244a;
+    --accent: #ffc23d;
+    --accent-dark: #e0a52a;
+
+    --ok: #4ade80;
+    --ok-soft: #10321f;
+    --warn: #fbbf24;
+    --warn-soft: #34260c;
+    --danger: #f87171;
+    --danger-soft: #3a1414;
+
+    --bg: #0b1020;
+    --surface: #131a2e;
+    --surface-2: #0f1526;
+    --border: #263149;
+    --text: #e9eefb;
+    --text-soft: #93a1bd;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, .5);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ------------------------------ Layout ---------------------------------- */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  padding: 14px 16px calc(14px);
+  box-shadow: var(--shadow);
+}
+.app-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-header .logo {
+  width: 40px; height: 40px;
+  border-radius: 11px;
+  background: var(--accent);
+  color: #1a1a1a;
+  display: grid; place-items: center;
+  font-size: 22px;
+  flex: 0 0 auto;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.25);
+}
+.app-header h1 {
+  font-size: 1.05rem;
+  margin: 0;
+  line-height: 1.15;
+  font-weight: 700;
+}
+.app-header .sub {
+  font-size: .74rem;
+  opacity: .85;
+  margin: 0;
+}
+.app-header .header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.icon-btn {
+  background: rgba(255,255,255,.16);
+  border: none;
+  color: #fff;
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  font-size: 18px;
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: background .15s;
+}
+.icon-btn:hover { background: rgba(255,255,255,.28); }
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px 16px calc(96px + var(--safe-bottom));
+}
+
+.view { animation: fade .2s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.section-title {
+  font-size: .82rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-soft);
+  font-weight: 700;
+  margin: 22px 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title .count {
+  background: var(--border);
+  color: var(--text-soft);
+  border-radius: 20px;
+  padding: 1px 9px;
+  font-size: .72rem;
+}
+
+/* ------------------------------ Cards ----------------------------------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+/* Riepilogo IVA */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+@media (min-width: 620px) { .summary-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+}
+.stat .label {
+  font-size: .72rem;
+  color: var(--text-soft);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  display: flex; align-items: center; gap: 5px;
+}
+.stat .value {
+  font-size: 1.28rem;
+  font-weight: 800;
+  margin-top: 4px;
+  letter-spacing: -.02em;
+}
+.stat.debito .value { color: var(--primary); }
+.stat.credito .value { color: var(--ok); }
+.stat.netta   .value { color: var(--warn); }
+.stat.netta.credito-favore .value { color: var(--ok); }
+.stat.margine .value { color: var(--text); }
+.stat .hint { font-size: .68rem; color: var(--text-soft); margin-top: 2px; }
+
+/* ------------------------- Categorie / filtri --------------------------- */
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.chip {
+  flex: 0 0 auto;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 30px;
+  padding: 7px 14px;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all .15s;
+}
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.chip.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+.chip.manage { border-style: dashed; color: var(--text-soft); }
+
+/* ------------------------- Lista cantieri ------------------------------- */
+.cantiere-group { margin-bottom: 8px; }
+
+.cantiere-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--cat, var(--primary));
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: transform .12s, box-shadow .12s;
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+.cantiere-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+.cantiere-card .cc-top {
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.cantiere-card .cc-name { font-weight: 700; font-size: 1.02rem; }
+.cantiere-card .cc-client { color: var(--text-soft); font-size: .85rem; }
+.cantiere-card .cc-meta {
+  display: flex; flex-wrap: wrap; gap: 8px 14px;
+  margin-top: 10px; font-size: .8rem; color: var(--text-soft);
+}
+.cantiere-card .cc-meta b { color: var(--text); font-weight: 700; }
+.badge {
+  font-size: .68rem; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: .03em; white-space: nowrap;
+}
+.badge.cat { color: #fff; }
+.badge.stato-attivo { background: var(--primary-soft); color: var(--primary-dark); }
+.badge.stato-completato { background: var(--ok-soft); color: var(--ok); }
+.badge.attach { background: var(--warn-soft); color: var(--warn); }
+.ml-auto { margin-left: auto; }
+
+/* ------------------------------ Bottoni --------------------------------- */
+.btn {
+  appearance: none;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 11px 16px;
+  font-size: .92rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: filter .15s, background .15s, transform .1s;
+  text-decoration: none;
+  font-family: inherit;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-accent { background: var(--accent); color: #1a1a1a; }
+.btn-accent:hover { filter: brightness(1.03); }
+.btn-ghost { background: transparent; border-color: var(--border); color: var(--text); }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-danger { background: var(--danger-soft); color: var(--danger); }
+.btn-danger:hover { filter: brightness(.97); }
+.btn-ok { background: var(--ok); color: #fff; }
+.btn-block { width: 100%; }
+.btn-sm { padding: 8px 12px; font-size: .84rem; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Floating action button */
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(18px + var(--safe-bottom));
+  z-index: 30;
+  background: var(--accent);
+  color: #1a1a1a;
+  border: none;
+  border-radius: 50%;
+  width: 60px; height: 60px;
+  font-size: 30px;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: transform .12s;
+}
+.fab:active { transform: scale(.93); }
+
+/* --------------------------- Dettaglio cantiere ------------------------- */
+.detail-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+}
+.back-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); border-radius: 10px; width: 40px; height: 40px;
+  font-size: 20px; cursor: pointer; flex: 0 0 auto; box-shadow: var(--shadow);
+}
+.detail-header h2 { margin: 0; font-size: 1.2rem; }
+.detail-header .dh-sub { color: var(--text-soft); font-size: .85rem; }
+
+.info-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--border); font-size: .92rem;
+}
+.info-row:last-child { border-bottom: none; }
+.info-row .k { color: var(--text-soft); }
+.info-row .v { font-weight: 600; text-align: right; }
+
+/* Spese / righe fattura */
+.expense-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  margin-bottom: 8px; background: var(--surface-2);
+}
+.expense-row .ex-icon {
+  width: 38px; height: 38px; border-radius: 9px; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 18px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.expense-row .ex-body { flex: 1 1 auto; min-width: 0; }
+.expense-row .ex-title { font-weight: 700; font-size: .92rem; }
+.expense-row .ex-sub { font-size: .76rem; color: var(--text-soft); }
+.expense-row .ex-amount { text-align: right; flex: 0 0 auto; }
+.expense-row .ex-amount .tot { font-weight: 800; }
+.expense-row .ex-amount .iva { font-size: .72rem; color: var(--ok); }
+
+.attachment-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .78rem; color: var(--primary); text-decoration: none; font-weight: 600;
+  margin-top: 2px;
+}
+
+.empty {
+  text-align: center; padding: 40px 20px; color: var(--text-soft);
+}
+.empty .big { font-size: 46px; margin-bottom: 8px; }
+.empty p { margin: 6px 0; }
+
+/* ------------------------------ Modale ---------------------------------- */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(15, 23, 42, .55);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0;
+  animation: fade .15s ease;
+}
+@media (min-width: 640px) {
+  .modal-backdrop { align-items: center; padding: 20px; }
+}
+.modal {
+  background: var(--surface);
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  overflow-y: auto;
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow-lg);
+  animation: slideup .22s ease;
+  padding-bottom: calc(16px + var(--safe-bottom));
+}
+@media (min-width: 640px) { .modal { border-radius: 20px; } }
+@keyframes slideup { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+.modal-head {
+  position: sticky; top: 0; background: var(--surface);
+  padding: 18px 18px 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; z-index: 2;
+}
+.modal-head h3 { margin: 0; font-size: 1.08rem; flex: 1 1 auto; }
+.modal-head .close { background: var(--surface-2); border: 1px solid var(--border);
+  width: 34px; height: 34px; border-radius: 9px; cursor: pointer; font-size: 18px; color: var(--text); }
+.modal-body { padding: 16px 18px; }
+.modal-foot {
+  padding: 12px 18px; display: flex; gap: 10px;
+  position: sticky; bottom: 0; background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+/* ------------------------------ Form ------------------------------------ */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block; font-size: .8rem; font-weight: 700;
+  color: var(--text-soft); margin-bottom: 6px;
+}
+.field input, .field select, .field textarea {
+  width: 100%; padding: 11px 12px; font-size: 16px; /* 16px evita zoom su iOS */
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text); font-family: inherit;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--primary); background: var(--surface);
+}
+.field textarea { min-height: 70px; resize: vertical; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field .hint { font-size: .72rem; color: var(--text-soft); margin-top: 4px; font-weight: 400; }
+
+.seg { display: flex; gap: 0; border: 1.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.seg button {
+  flex: 1; padding: 10px; background: var(--surface-2); border: none;
+  color: var(--text-soft); font-weight: 700; cursor: pointer; font-size: .88rem; font-family: inherit;
+}
+.seg button.active { background: var(--primary); color: #fff; }
+
+/* file picker */
+.file-drop {
+  border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+  padding: 14px; text-align: center; background: var(--surface-2); cursor: pointer;
+  font-size: .85rem; color: var(--text-soft);
+}
+.file-drop.has-file { border-style: solid; border-color: var(--ok); color: var(--text); background: var(--ok-soft); }
+.file-current { display: flex; align-items: center; gap: 8px; justify-content: center; font-weight: 600; }
+
+/* mini riepilogo iva nel form */
+.iva-preview {
+  background: var(--primary-soft); border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: .85rem; display: flex; justify-content: space-between;
+  color: var(--primary-dark); font-weight: 700; margin-top: 4px;
+}
+
+/* Categorie manager */
+.cat-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px;
+}
+.cat-item input[type=text] { flex: 1; padding: 8px 10px; font-size: 15px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); }
+.cat-item input[type=color] { width: 40px; height: 38px; border: 1px solid var(--border); border-radius: 8px; padding: 2px; background: var(--surface-2); cursor: pointer; }
+.cat-item button { background: var(--danger-soft); color: var(--danger); border: none; width: 38px; height: 38px; border-radius: 8px; cursor: pointer; font-size: 16px; }
+
+/* toast */
+.toast {
+  position: fixed; left: 50%; bottom: calc(90px + var(--safe-bottom));
+  transform: translateX(-50%);
+  background: var(--text); color: var(--bg);
+  padding: 11px 18px; border-radius: 30px; font-size: .88rem; font-weight: 600;
+  box-shadow: var(--shadow-lg); z-index: 60; opacity: 0; transition: opacity .2s, transform .2s;
+  pointer-events: none; max-width: 90vw; text-align: center;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+.hidden { display: none !important; }
+
+/* progress bar sotto header per completamento cantiere */
+.mini-note { font-size: .8rem; color: var(--text-soft); margin: 2px 4px 0; }
+
+.divider { height: 1px; background: var(--border); margin: 16px 0; border: none; }
+
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.row-actions .btn { flex: 1 1 auto; }
+
+.tag-tipo { font-size: .68rem; padding: 2px 7px; border-radius: 6px; background: var(--border); color: var(--text-soft); font-weight: 700; }
