@@ -518,6 +518,23 @@ main {
 .iva-proj .proj-row.net span { font-weight: 700; }
 .iva-proj .proj-row.net b.versare { color: var(--warn); }
 .iva-proj .proj-row.net b.credito { color: var(--ok); }
+.iva-proj .proj-row.net b.ok { color: var(--ok); }
+.iva-proj .proj-row.net b.warn { color: var(--warn); }
+
+/* conto cliente (bonifici) */
+.conto-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.conto-item {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.conto-item .cl { font-size: .72rem; color: var(--text-soft); font-weight: 600; }
+.conto-item .cv { font-size: 1.05rem; font-weight: 800; margin-top: 2px; }
+.conto-item .ch { font-size: .66rem; color: var(--text-soft); margin-top: 1px; }
+.conto-item.big { border-color: var(--primary); }
+.conto-item.big .cv { font-size: 1.22rem; }
+.conto-item .cv.due { color: var(--primary); }
+.conto-item .cv.ok { color: var(--ok); }
+.conto-item .cv.warn { color: var(--warn); }
 
 /* Categorie manager */
 .cat-item {

@@ -127,13 +127,19 @@
       costiImponibile += num(s.imponibile);
     });
     const ricavoImponibile = cant.fatturaOrigine ? num(cant.fatturaOrigine.imponibile) : 0;
+    const bonificiTotale = (cant.bonifici || []).reduce((a, b) => a + num(b.importo), 0);
     return {
       ivaDebito: debito,
       ivaCredito: credito,
       ivaNetta: debito - credito,       // > 0 = IVA da versare, < 0 = credito IVA
       ricavoImponibile,
       costiImponibile,
-      margine: ricavoImponibile - costiImponibile
+      margine: ricavoImponibile - costiImponibile,
+      bonificiTotale,
+      // Da incassare dal cliente = imponibile fattura - bonifici ricevuti
+      daIncassareImponibile: ricavoImponibile - bonificiTotale,
+      // Cassa materiali = bonifici ricevuti - spese (imponibile). >0 disponibile, <0 anticipato
+      cassaMateriali: bonificiTotale - costiImponibile
     };
   }
 
@@ -414,6 +420,9 @@
     }
     html += `</div>`;
 
+    // Bonifici del cliente + conto cliente
+    html += bonificiSection(c, r);
+
     // Spese materiali / utensili
     const spese = c.spese || [];
     html += `<div class="section-title">🛠️ Spese materiali e utensili <span class="count">${spese.length}</span></div>`;
@@ -607,7 +616,7 @@
       Object.assign(c, data);
       toast('Cantiere aggiornato');
     } else {
-      const c = Object.assign({ id: uid(), stato: 'attivo', fatturaOrigine: null, preventivo: null, spese: [], foto: [] }, data);
+      const c = Object.assign({ id: uid(), stato: 'attivo', fatturaOrigine: null, preventivo: null, spese: [], foto: [], bonifici: [] }, data);
       state.cantieri.unshift(c);
       route = { name: 'cantiere', id: c.id };
       toast('Cantiere creato');
@@ -1179,6 +1188,14 @@
       case 'add-foto': addFoto(id); break;
       case 'del-foto': await delFoto(id, t.dataset.foto); break;
       case 'stampa-cantiere': stampaCantiere(id); break;
+      case 'add-bonifico': bonificoForm(id); break;
+      case 'edit-bonifico': {
+        const cc = state.cantieri.find(x => x.id === owner);
+        bonificoForm(owner, (cc.bonifici || []).find(x => x.id === id));
+        break;
+      }
+      case 'save-bonifico': await saveBonifico(owner, id); break;
+      case 'del-bonifico': await delBonifico(owner, id); break;
     }
   });
 
@@ -1236,6 +1253,7 @@
     if (c.fatturaOrigine && c.fatturaOrigine.fileId) await DB.deleteFile(c.fatturaOrigine.fileId);
     for (const s of (c.spese || [])) if (s.fileId) await DB.deleteFile(s.fileId);
     for (const f of (c.foto || [])) if (f.fileId) await DB.deleteFile(f.fileId);
+    for (const bn of (c.bonifici || [])) if (bn.fileId) await DB.deleteFile(bn.fileId);
     state.cantieri = state.cantieri.filter(x => x.id !== id);
     persist(); route = { name: 'dashboard' }; render();
     toast('Cantiere eliminato');
@@ -1256,6 +1274,7 @@
     s.cantieri.forEach(c => {
       c.spese = Array.isArray(c.spese) ? c.spese : [];
       c.foto = Array.isArray(c.foto) ? c.foto : [];
+      c.bonifici = Array.isArray(c.bonifici) ? c.bonifici : [];
       if (c.fatturaOrigine === undefined) c.fatturaOrigine = null;
       if (c.preventivo === undefined) c.preventivo = null;
       if (c.fatturaOrigine && c.fatturaOrigine.incassato === undefined) c.fatturaOrigine.incassato = false;
@@ -1798,6 +1817,21 @@
       h += `</tbody></table>`;
     }
 
+    const bonifici = c.bonifici || [];
+    if (bonifici.length || r.bonificiTotale) {
+      h += `<h3>Conto cliente (bonifici)</h3>`;
+      if (bonifici.length) {
+        h += `<table><thead><tr><th>Data</th><th>Causale</th><th class="n">Importo</th></tr></thead><tbody>`;
+        bonifici.forEach(bn => h += `<tr><td>${fmtDate(bn.data)}</td><td>${esc(bn.causale || '')}</td><td class="n">${euro(bn.importo)}</td></tr>`);
+        h += `</tbody></table>`;
+      }
+      h += `<table><tbody>
+        <tr><td>Bonifici ricevuti</td><td class="n">${euro(r.bonificiTotale)}</td></tr>
+        ${c.fatturaOrigine ? `<tr class="tot"><td>Da incassare dal cliente (imponibile − bonifici)</td><td class="n">${euro(r.daIncassareImponibile)}</td></tr>` : ''}
+        <tr class="tot"><td>Cassa materiali (bonifici − spese)</td><td class="n">${euro(r.cassaMateriali)}</td></tr>
+      </tbody></table>`;
+    }
+
     h += `<h3>Riepilogo IVA cantiere</h3>`;
     h += `<table><tbody>
       <tr><td>IVA a debito (fattura)</td><td class="n">${euro(r.ivaDebito)}</td></tr>
@@ -2001,6 +2035,8 @@
     const catId = i => (state.categorie[i] ? state.categorie[i].id : '');
     const spesa = (descr, tipo, forn, imp, aliq, data, pagato) =>
       ({ id: uid(), descrizione: descr, tipo, fornitore: forn, numeroDoc: '', imponibile: imp, aliquota: aliq, data, fileId: null, fileName: null, pagato });
+    const bonif = (importo, data, causale) =>
+      ({ id: uid(), importo, data, causale, fileId: null, fileName: null });
 
     const demo = [
       {
@@ -2020,6 +2056,10 @@
           spesa('Cavi, canaline e frutti', 'materiale', 'Elettroforniture SRL', 3200, 22, dt(2, 12), true),
           spesa('Avvitatore a batteria', 'utensile', 'Utensilteria SPA', 450, 22, dt(2, 5), false)
         ],
+        bonifici: [
+          bonif(5000, dt(2, 3), 'Acconto materiali'),
+          bonif(3000, dt(3, 1), 'Secondo acconto')
+        ],
         foto: []
       },
       {
@@ -2038,6 +2078,7 @@
         preventivo: null,
         fatturaOrigine: { numero: y + '/060', data: dt(7, 3), imponibile: 3400, aliquota: 10, incassato: false, fileId: null, fileName: null },
         spese: [ spesa('Materiale di consumo', 'materiale', 'Ferramenta Centrale', 600, 22, dt(7, 2), false) ],
+        bonifici: [ bonif(2000, dt(7, 2), 'Anticipo lavori') ],
         foto: []
       },
       {
@@ -2061,6 +2102,125 @@
     dashboardFilter = 'tutte';
     render();
     toast('Dati di esempio caricati 🧪');
+  }
+
+  /* ======================= Bonifici del cliente =========================== */
+  function bonificiSection(c, r) {
+    const bonifici = c.bonifici || [];
+    const hasFattura = !!c.fatturaOrigine;
+    const cassaFavore = r.cassaMateriali >= 0;
+    let h = `<div class="section-title">💳 Bonifici del cliente <span class="count">${bonifici.length}</span></div>`;
+    h += `<div class="card">`;
+    h += `<div class="conto-grid">
+      <div class="conto-item"><div class="cl">Bonifici ricevuti</div><div class="cv">${euro(r.bonificiTotale)}</div></div>
+      <div class="conto-item"><div class="cl">Spese materiali/utensili</div><div class="cv">${euro(r.costiImponibile)}</div></div>
+      <div class="conto-item big"><div class="cl">Da incassare dal cliente</div><div class="cv due">${hasFattura ? euro(r.daIncassareImponibile) : '—'}</div><div class="ch">${hasFattura ? 'imponibile − bonifici' : 'aggiungi la fattura'}</div></div>
+      <div class="conto-item big"><div class="cl">Cassa materiali</div><div class="cv ${cassaFavore ? 'ok' : 'warn'}">${euro(Math.abs(r.cassaMateriali))}</div><div class="ch">${cassaFavore ? 'disponibile (bonifici − spese)' : 'anticipato di tasca tua'}</div></div>
+    </div>`;
+    h += `<p class="mini-note">Ogni bonifico scala dall'imponibile "da incassare"; la "cassa materiali" cala ad ogni spesa aggiunta.</p>`;
+    if (bonifici.length) {
+      h += `<div style="margin-top:10px">` + bonifici.map(bn => bonificoRow(c.id, bn)).join('') + `</div>`;
+    }
+    h += `<button class="btn btn-ghost btn-block" style="margin-top:12px" data-action="add-bonifico" data-id="${c.id}">➕ Aggiungi bonifico</button>`;
+    h += `</div>`;
+    return h;
+  }
+
+  function bonificoRow(cantId, bn) {
+    const sub = [bn.causale, fmtDate(bn.data)].filter(Boolean).join(' · ');
+    const fileLink = bn.fileId ? `<a class="attachment-link" data-action="open-file" data-file="${bn.fileId}" href="#">📎 ${esc(bn.fileName || 'Allegato')}</a>` : '';
+    return `<div class="expense-row">
+      <div class="ex-icon">💳</div>
+      <div class="ex-body">
+        <div class="ex-title">Bonifico</div>
+        <div class="ex-sub">${esc(sub || '—')}</div>
+        ${fileLink}
+      </div>
+      <div class="ex-amount">
+        <div class="tot">${euro(bn.importo)}</div>
+        <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" data-action="edit-bonifico" data-owner="${cantId}" data-id="${bn.id}" style="padding:5px 8px">✏️</button>
+          <button class="btn btn-danger btn-sm" data-action="del-bonifico" data-owner="${cantId}" data-id="${bn.id}" style="padding:5px 8px">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function bonificoForm(cantId, existing) {
+    const bn = existing || {};
+    pendingFile = null;
+    const body = `
+      <div class="field-row">
+        <div class="field"><label>Importo (€) *</label><input id="bn-imp" type="number" inputmode="decimal" step="0.01" value="${bn.importo != null ? bn.importo : ''}" placeholder="0,00"></div>
+        <div class="field"><label>Data</label><input id="bn-data" type="date" value="${esc(bn.data || todayISO())}"></div>
+      </div>
+      <div class="field"><label>Causale</label><input id="bn-caus" type="text" value="${esc(bn.causale || '')}" placeholder="Es. Acconto materiali"></div>
+      <div class="iva-proj" id="bn-proj">
+        <div class="proj-title">📊 Conto cliente dopo questo bonifico</div>
+        <div class="proj-row"><span>Da incassare dal cliente</span><b id="bn-inc">—</b></div>
+        <div class="proj-row net"><span>Cassa materiali</span><b id="bn-cassa">—</b></div>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label>Allega contabile del bonifico (foto/PDF)</label>
+        ${fileDrop('bn-file', bn.fileName)}
+      </div>
+    `;
+    const foot = `<button class="btn btn-ghost" data-action="close-modal">Annulla</button>
+      <button class="btn btn-primary btn-block" data-action="save-bonifico" data-owner="${cantId}" data-id="${bn.id || ''}">💾 Salva bonifico</button>`;
+    openModal(existing ? 'Modifica bonifico' : 'Nuovo bonifico', body, foot);
+    wireBonificoProjection(cantId, existing ? existing.id : null);
+    wireFileDrop('bn-file');
+  }
+
+  function wireBonificoProjection(cantId, escludiId) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    const imponibileFatt = c.fatturaOrigine ? num(c.fatturaOrigine.imponibile) : 0;
+    const costi = (c.spese || []).reduce((a, s) => a + num(s.imponibile), 0);
+    const bonificiAltri = (c.bonifici || []).reduce((a, b) => a + (b.id === escludiId ? 0 : num(b.importo)), 0);
+    const upd = () => {
+      const q = num(document.getElementById('bn-imp').value);
+      const totBon = bonificiAltri + q;
+      const inc = imponibileFatt - totBon;
+      const cassa = totBon - costi;
+      document.getElementById('bn-inc').textContent = c.fatturaOrigine ? euro(inc) : '—';
+      const cassaEl = document.getElementById('bn-cassa');
+      cassaEl.textContent = euro(Math.abs(cassa)) + (cassa < 0 ? ' anticipato' : ' disponibile');
+      cassaEl.className = cassa < 0 ? 'warn' : 'ok';
+    };
+    document.getElementById('bn-imp').addEventListener('input', upd);
+    upd();
+  }
+
+  async function saveBonifico(cantId, id) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    const importo = num(document.getElementById('bn-imp').value);
+    if (!importo) { toast('Inserisci l\'importo del bonifico'); return; }
+    c.bonifici = c.bonifici || [];
+    const existing = id ? c.bonifici.find(x => x.id === id) : null;
+    let fileId = existing ? existing.fileId : null;
+    let fileName = existing ? existing.fileName : null;
+    if (pendingFile === 'REMOVE') { if (fileId) await DB.deleteFile(fileId); fileId = null; fileName = null; }
+    else if (pendingFile) { if (fileId) await DB.deleteFile(fileId); fileId = uid(); await DB.saveFile(fileId, pendingFile.blob); fileName = pendingFile.name; }
+    const data = {
+      importo,
+      data: document.getElementById('bn-data').value || '',
+      causale: document.getElementById('bn-caus').value.trim(),
+      fileId, fileName
+    };
+    if (existing) { Object.assign(existing, data); toast('Bonifico aggiornato'); }
+    else { c.bonifici.unshift(Object.assign({ id: uid() }, data)); toast('Bonifico aggiunto'); }
+    pendingFile = null;
+    persist(); closeModal(); render();
+  }
+
+  async function delBonifico(cantId, id) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    const idx = (c.bonifici || []).findIndex(x => x.id === id);
+    if (idx < 0) return;
+    if (!confirm('Eliminare questo bonifico?')) return;
+    if (c.bonifici[idx].fileId) await DB.deleteFile(c.bonifici[idx].fileId);
+    c.bonifici.splice(idx, 1);
+    persist(); render(); toast('Bonifico eliminato');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

@@ -49,6 +49,9 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
   compaiono in cima a scheda cantiere e report.
 - 🧮 **Ritenuta d'acconto** — campo opzionale sulla fattura (es. 4% ritenuta
   condominiale); l'app calcola il **netto a incassare** e lo usa nello scadenzario.
+- 💳 **Bonifici del cliente** — registra i bonifici ricevuti (con causale e
+  contabile allegata). Ogni bonifico scala dall'imponibile **da incassare**;
+  la **cassa materiali** (bonifici − spese) si aggiorna a ogni spesa aggiunta.
 
 ---
 
