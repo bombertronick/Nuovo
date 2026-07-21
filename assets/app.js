@@ -65,6 +65,25 @@
   function totaleOf(imponibile, aliquota) {
     return num(imponibile) + ivaOf(imponibile, aliquota);
   }
+  // Ritenuta d'acconto (es. 4% ritenuta condominiale): calcolata sull'imponibile
+  function ritenutaOf(f) { return f ? num(f.imponibile) * (num(f.ritenuta) / 100) : 0; }
+  // Netto effettivamente incassato dal cliente = totale fattura − ritenuta
+  function nettoIncassoFattura(f) { return f ? totaleOf(f.imponibile, f.aliquota) - ritenutaOf(f) : 0; }
+
+  // Numerazione automatica: cerca il progressivo massimo dell'anno e incrementa
+  function prossimoProgressivo(kind) {
+    const y = annoOf(todayISO());
+    let max = 0;
+    state.cantieri.forEach(c => {
+      const n = kind === 'preventivo' ? (c.preventivo && c.preventivo.numero) : (c.fatturaOrigine && c.fatturaOrigine.numero);
+      if (!n) return;
+      const m = String(n).match(/(\d{4})\s*[\/\-]\s*0*(\d+)/);
+      if (m && parseInt(m[1], 10) === y) max = Math.max(max, parseInt(m[2], 10));
+    });
+    return max + 1;
+  }
+  function prossimoNumeroFattura() { return annoOf(todayISO()) + '/' + String(prossimoProgressivo('fattura')).padStart(3, '0'); }
+  function prossimoNumeroPreventivo() { return 'P-' + annoOf(todayISO()) + '/' + String(prossimoProgressivo('preventivo')).padStart(2, '0'); }
 
   function fmtDate(iso) {
     if (!iso) return '—';
@@ -374,6 +393,10 @@
       html += infoRow('Imponibile', euro(f.imponibile));
       html += infoRow(`IVA (${f.aliquota}%)`, euro(ivaOf(f.imponibile, f.aliquota)));
       html += infoRow('Totale fattura', `<b>${euro(totaleOf(f.imponibile, f.aliquota))}</b>`);
+      if (num(f.ritenuta) > 0) {
+        html += infoRow(`Ritenuta d'acconto (${f.ritenuta}%)`, `−${euro(ritenutaOf(f))}`);
+        html += infoRow('Netto a incassare', `<b>${euro(nettoIncassoFattura(f))}</b>`);
+      }
       html += infoRow('Stato incasso', f.incassato
         ? `<span class="pay-badge paid">✅ Incassata</span>`
         : `<span class="pay-badge due">⏳ Da incassare</span>`);
@@ -600,17 +623,24 @@
   function fatturaForm(cantId) {
     const c = state.cantieri.find(x => x.id === cantId);
     const f = c.fatturaOrigine || {};
+    const numeroVal = c.fatturaOrigine ? (f.numero || '') : prossimoNumeroFattura();
     pendingFile = null;
     const body = `
       <div class="field-row">
-        <div class="field"><label>Numero fattura</label><input id="ff-numero" type="text" value="${esc(f.numero || '')}" placeholder="Es. 2026/014"></div>
+        <div class="field"><label>Numero fattura</label><input id="ff-numero" type="text" value="${esc(numeroVal)}" placeholder="Es. 2026/014"></div>
         <div class="field"><label>Data</label><input id="ff-data" type="date" value="${esc(f.data || todayISO())}"></div>
       </div>
       <div class="field-row">
         <div class="field"><label>Imponibile (€) *</label><input id="ff-imponibile" type="number" inputmode="decimal" step="0.01" value="${f.imponibile != null ? f.imponibile : ''}" placeholder="0,00"></div>
         <div class="field"><label>Aliquota IVA</label>${aliquotaSelect('ff-aliquota', f.aliquota)}</div>
       </div>
+      <div class="field">
+        <label>Ritenuta d'acconto (%)</label>
+        <input id="ff-ritenuta" type="number" inputmode="decimal" step="0.01" value="${f.ritenuta != null ? f.ritenuta : 0}" placeholder="0">
+        <div class="hint">Es. 4% ritenuta condominiale. Lascia 0 se non si applica.</div>
+      </div>
       <div class="iva-preview" id="ff-preview"><span>IVA: —</span><span>Totale: —</span></div>
+      <div class="iva-preview" id="ff-netto" style="margin-top:6px;display:none"></div>
       <div class="field" style="margin-top:14px">
         <label>Allega fattura (foto o PDF)</label>
         ${fileDrop('ff-file', f.fileName)}
@@ -619,8 +649,31 @@
     const foot = `<button class="btn btn-ghost" data-action="close-modal">Annulla</button>
       <button class="btn btn-primary btn-block" data-action="save-fattura" data-id="${cantId}">💾 Salva fattura</button>`;
     openModal('Fattura d\'origine', body, foot);
-    wireIvaPreview('ff-imponibile', 'ff-aliquota', 'ff-preview');
+    wireFatturaPreview();
     wireFileDrop('ff-file');
+  }
+
+  function wireFatturaPreview() {
+    const upd = () => {
+      const imp = num(document.getElementById('ff-imponibile').value);
+      const aliq = num(document.getElementById('ff-aliquota').value);
+      const rit = num(document.getElementById('ff-ritenuta').value);
+      const iva = ivaOf(imp, aliq);
+      const tot = imp + iva;
+      document.getElementById('ff-preview').innerHTML = `<span>IVA: ${euro(iva)}</span><span>Totale: ${euro(tot)}</span>`;
+      const nettoEl = document.getElementById('ff-netto');
+      const ritImporto = imp * rit / 100;
+      if (rit > 0) {
+        nettoEl.style.display = '';
+        nettoEl.innerHTML = `<span>Ritenuta ${rit}%: −${euro(ritImporto)}</span><span>Netto a incassare: ${euro(tot - ritImporto)}</span>`;
+      } else {
+        nettoEl.style.display = 'none';
+      }
+    };
+    document.getElementById('ff-imponibile').addEventListener('input', upd);
+    document.getElementById('ff-aliquota').addEventListener('change', upd);
+    document.getElementById('ff-ritenuta').addEventListener('input', upd);
+    upd();
   }
 
   async function saveFattura(cantId) {
@@ -644,6 +697,9 @@
       data: document.getElementById('ff-data').value || '',
       imponibile,
       aliquota: num(document.getElementById('ff-aliquota').value),
+      ritenuta: num(document.getElementById('ff-ritenuta').value),
+      incassato: prev.incassato || false,
+      dataIncasso: prev.dataIncasso || null,
       fileId, fileName
     };
     pendingFile = null;
@@ -888,13 +944,32 @@
   }
 
   /* ------- Impostazioni / Backup ------- */
+  let pendingLogo = null; // null = invariato, 'REMOVE' = rimuovi, dataURL = nuovo
+
   function settingsModal() {
     const g = globalRiepilogo();
+    pendingLogo = null;
     const body = `
-      <div class="field">
+      <div class="section-title" style="margin-top:0">🏢 Dati impresa</div>
+      <div class="logo-setting">
+        <div class="logo-preview" id="logo-preview">${state.logo ? `<img src="${state.logo}" alt="logo">` : '<span>Nessun<br>logo</span>'}</div>
+        <div style="flex:1">
+          <button class="btn btn-ghost btn-sm" data-action="upload-logo" type="button">🖼️ ${state.logo ? 'Cambia' : 'Carica'} logo</button>
+          <button class="btn btn-danger btn-sm" data-action="remove-logo" type="button" id="btn-remove-logo" style="margin-left:6px;${state.logo ? '' : 'display:none'}">Rimuovi</button>
+          <div class="hint" style="margin-top:6px">Comparirà in cima ai PDF (scheda cantiere e report).</div>
+        </div>
+      </div>
+      <input id="logo-input" type="file" accept="image/*" class="hidden">
+      <div class="field" style="margin-top:12px">
         <label>Nome impresa</label>
         <input id="set-azienda" type="text" value="${esc(state.azienda || '')}" placeholder="La tua impresa">
       </div>
+      <div class="field-row">
+        <div class="field"><label>P.IVA / C.F.</label><input id="set-piva" type="text" value="${esc(state.partitaIva || '')}" placeholder="IT01234567890"></div>
+        <div class="field"><label>Telefono</label><input id="set-tel" type="text" value="${esc(state.telefono || '')}" placeholder="333 1234567"></div>
+      </div>
+      <div class="field"><label>Indirizzo</label><input id="set-indirizzo" type="text" value="${esc(state.indirizzoAzienda || '')}" placeholder="Via, città"></div>
+      <div class="field"><label>Email</label><input id="set-email" type="email" value="${esc(state.email || '')}" placeholder="info@impresa.it"></div>
       <hr class="divider">
       <div class="section-title" style="margin-top:0">💾 Backup dei dati</div>
       <p class="mini-note">I dati sono salvati solo su questo dispositivo. Esporta un backup per non perderli e per spostarli su un altro dispositivo.</p>
@@ -921,11 +996,32 @@
     openModal('Impostazioni', body, foot);
     const imp = document.getElementById('import-input');
     imp.addEventListener('change', doImport);
+    const logoInput = document.getElementById('logo-input');
+    if (logoInput) logoInput.addEventListener('change', () => {
+      const file = logoInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        pendingLogo = reader.result;
+        const pv = document.getElementById('logo-preview');
+        if (pv) pv.innerHTML = `<img src="${reader.result}" alt="logo">`;
+        const rb = document.getElementById('btn-remove-logo');
+        if (rb) rb.style.display = '';
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   function saveSettings() {
     const v = document.getElementById('set-azienda').value.trim();
     if (v) state.azienda = v;
+    state.partitaIva = document.getElementById('set-piva').value.trim();
+    state.telefono = document.getElementById('set-tel').value.trim();
+    state.indirizzoAzienda = document.getElementById('set-indirizzo').value.trim();
+    state.email = document.getElementById('set-email').value.trim();
+    if (pendingLogo === 'REMOVE') state.logo = null;
+    else if (pendingLogo) state.logo = pendingLogo;
+    pendingLogo = null;
     persist(); closeModal(); updateHeader(); render();
     toast('Impostazioni salvate');
   }
@@ -1004,6 +1100,15 @@
       case 'export-backup': exportBackup(); break;
       case 'import-backup': document.getElementById('import-input').click(); break;
       case 'carica-demo': caricaDatiDemo(); break;
+      case 'upload-logo': document.getElementById('logo-input').click(); break;
+      case 'remove-logo': {
+        pendingLogo = 'REMOVE';
+        const pv = document.getElementById('logo-preview');
+        if (pv) pv.innerHTML = '<span>Nessun<br>logo</span>';
+        const rb = document.getElementById('btn-remove-logo');
+        if (rb) rb.style.display = 'none';
+        break;
+      }
       case 'new-cantiere': cantiereForm(null); break;
       // --- nuove funzionalità ---
       case 'open-scadenzario': releaseUrls(); route = { name: 'scadenzario' }; render(); break;
@@ -1094,6 +1199,11 @@
   function normalizeState(s) {
     s = s || DEFAULT_STATE();
     s.azienda = s.azienda || 'La mia impresa';
+    s.partitaIva = s.partitaIva || '';
+    s.telefono = s.telefono || '';
+    s.indirizzoAzienda = s.indirizzoAzienda || '';
+    s.email = s.email || '';
+    s.logo = s.logo || null;
     s.categorie = Array.isArray(s.categorie) ? s.categorie : [];
     s.cantieri = Array.isArray(s.cantieri) ? s.cantieri : [];
     s.speseGenerali = Array.isArray(s.speseGenerali) ? s.speseGenerali : [];
@@ -1103,6 +1213,7 @@
       if (c.fatturaOrigine === undefined) c.fatturaOrigine = null;
       if (c.preventivo === undefined) c.preventivo = null;
       if (c.fatturaOrigine && c.fatturaOrigine.incassato === undefined) c.fatturaOrigine.incassato = false;
+      if (c.fatturaOrigine && c.fatturaOrigine.ritenuta === undefined) c.fatturaOrigine.ritenuta = 0;
       c.spese.forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; });
       if (!c.stato) c.stato = 'attivo';
     });
@@ -1163,7 +1274,7 @@
   function scadenzeTotali() {
     let daIncassare = 0, daPagare = 0;
     state.cantieri.forEach(c => {
-      if (c.fatturaOrigine && !c.fatturaOrigine.incassato) daIncassare += totaleOf(c.fatturaOrigine.imponibile, c.fatturaOrigine.aliquota);
+      if (c.fatturaOrigine && !c.fatturaOrigine.incassato) daIncassare += nettoIncassoFattura(c.fatturaOrigine);
       (c.spese || []).forEach(s => { if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota); });
     });
     (state.speseGenerali || []).forEach(s => { if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota); });
@@ -1188,7 +1299,7 @@
         const item = {
           kind: 'fattura', cantId: c.id, titolo: c.nome,
           sub: [f.numero ? 'Fatt. ' + f.numero : 'Fattura', c.cliente, fmtDate(f.data)].filter(Boolean).join(' · '),
-          tot: totaleOf(f.imponibile, f.aliquota)
+          tot: nettoIncassoFattura(f)
         };
         (f.incassato ? incassate : daIncassare).push(item);
       }
@@ -1375,7 +1486,7 @@
 
   function preventivoForm(cantId) {
     const c = state.cantieri.find(x => x.id === cantId);
-    const p = c.preventivo || { numero: '', data: todayISO(), aliquota: DEFAULT_ALIQUOTA, stato: 'bozza', note: '', voci: [] };
+    const p = c.preventivo || { numero: prossimoNumeroPreventivo(), data: todayISO(), aliquota: DEFAULT_ALIQUOTA, stato: 'bozza', note: '', voci: [] };
     preventivoVoci = (p.voci && p.voci.length) ? p.voci.map(v => ({ descrizione: v.descrizione, quantita: v.quantita, prezzoUnitario: v.prezzoUnitario }))
       : [{ descrizione: '', quantita: 1, prezzoUnitario: 0 }];
     const body = `
@@ -1574,12 +1685,20 @@
     .kv b { display: inline-block; min-width: 130px; color: #555; font-weight: 600; }
     .foot { margin-top: 24px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 8px; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eef; }
+    .head { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1e5eff; padding-bottom: 10px; margin-bottom: 4px; }
+    .head .logo { max-height: 62px; max-width: 170px; object-fit: contain; }
+    .head .dett { font-size: 11px; color: #666; margin-top: 3px; }
   `;
   function openPrint(title, inner) {
     const w = window.open('', '_blank');
     if (!w) { toast('Consenti i popup per stampare / salvare PDF'); return; }
+    const logo = state.logo ? `<img class="logo" src="${state.logo}" alt="logo">` : '';
+    const dett = [state.indirizzoAzienda, state.partitaIva ? 'P.IVA ' + state.partitaIva : '', state.telefono, state.email].filter(Boolean).join(' · ');
     w.document.write(`<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${PRINT_CSS}</style></head><body>
-      <h1>${esc(state.azienda || 'Impresa')}</h1>
+      <div class="head">
+        ${logo}
+        <div><h1>${esc(state.azienda || 'Impresa')}</h1>${dett ? `<div class="dett">${esc(dett)}</div>` : ''}</div>
+      </div>
       <h2>${esc(title)}</h2>
       ${inner}
       <div class="foot">Documento generato dal Gestionale Cantieri — ${fmtDate(todayISO())}</div>
@@ -1619,6 +1738,8 @@
         <tr><td>Imponibile</td><td class="n">${euro(f.imponibile)}</td></tr>
         <tr><td>IVA (${f.aliquota}%)</td><td class="n">${euro(ivaOf(f.imponibile, f.aliquota))}</td></tr>
         <tr class="tot"><td>Totale fattura</td><td class="n">${euro(totaleOf(f.imponibile, f.aliquota))}</td></tr>
+        ${num(f.ritenuta) > 0 ? `<tr><td>Ritenuta d'acconto (${f.ritenuta}%)</td><td class="n">−${euro(ritenutaOf(f))}</td></tr>
+        <tr class="tot"><td>Netto a incassare</td><td class="n">${euro(nettoIncassoFattura(f))}</td></tr>` : ''}
         <tr><td>Stato incasso</td><td class="n">${f.incassato ? 'Incassata' : 'Da incassare'}</td></tr>
       </tbody></table>`;
     }

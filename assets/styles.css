@@ -552,6 +552,15 @@ main {
   display: grid; place-items: center; line-height: 1;
 }
 
+/* ------------------------------ Logo impresa ---------------------------- */
+.logo-setting { display: flex; align-items: center; gap: 14px; }
+.logo-preview {
+  width: 84px; height: 84px; flex: 0 0 auto; border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm); background: var(--surface-2); display: grid; place-items: center;
+  overflow: hidden; text-align: center; color: var(--text-soft); font-size: .72rem; font-weight: 600;
+}
+.logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
 /* ------------------------------ Grafici a barre ------------------------- */
 .bars { display: flex; flex-direction: column; gap: 12px; }
 .bar-row { display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: center; }

@@ -43,6 +43,12 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 - 🖼️ **Galleria foto per cantiere** — documenta i lavori (prima/durante/dopo).
 - 📈 **Statistiche azienda** — fatturato per categoria, ripartizione costi
   (materiali/utensili), margine medio e **report annuale/complessivo in PDF**.
+- 🔢 **Numerazione automatica** — numero di fattura e preventivo proposto in
+  automatico (progressivo per anno), sempre modificabile.
+- 🏢 **Dati e logo impresa nei PDF** — logo, P.IVA, indirizzo e contatti
+  compaiono in cima a scheda cantiere e report.
+- 🧮 **Ritenuta d'acconto** — campo opzionale sulla fattura (es. 4% ritenuta
+  condominiale); l'app calcola il **netto a incassare** e lo usa nello scadenzario.
 
 ---
 
