@@ -479,3 +479,75 @@ main {
 .row-actions .btn { flex: 1 1 auto; }
 
 .tag-tipo { font-size: .68rem; padding: 2px 7px; border-radius: 6px; background: var(--border); color: var(--text-soft); font-weight: 700; }
+
+/* ------------------------- Strumenti (dashboard) ------------------------ */
+.tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tools-grid.tools-3 { grid-template-columns: repeat(3, 1fr); }
+.tool-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 16px 10px; cursor: pointer; color: var(--text);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  font-weight: 700; font-size: .84rem; text-align: center; line-height: 1.2; font-family: inherit;
+  transition: transform .12s, box-shadow .12s;
+}
+.tool-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+.tool-btn .ti { font-size: 26px; }
+
+/* ------------------------------ Banner scadenze ------------------------- */
+.scad-banner {
+  width: 100%; margin-top: 12px; border: 1px solid var(--border); background: var(--surface);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-around; gap: 10px;
+  font-size: .82rem; color: var(--text-soft); font-weight: 600; font-family: inherit; text-align: center;
+}
+.scad-banner b { display: block; font-size: 1.05rem; color: var(--text); margin-top: 2px; }
+.scad-banner .sep { width: 1px; height: 34px; background: var(--border); }
+.scad-banner:hover { box-shadow: var(--shadow-lg); }
+
+/* --------------------------- Badge pagamento ---------------------------- */
+.pay-badge { font-size: .68rem; font-weight: 800; padding: 2px 8px; border-radius: 20px; letter-spacing: .02em; }
+.pay-badge.paid { background: var(--ok-soft); color: var(--ok); }
+.pay-badge.due { background: var(--warn-soft); color: var(--warn); }
+
+/* --------------------------- Tabella trimestri -------------------------- */
+.tri-head, .tri-row {
+  display: grid; grid-template-columns: 1.7fr 1fr 1fr 1fr; gap: 6px; align-items: center;
+  padding: 9px 4px; font-size: .82rem; text-align: right;
+}
+.tri-head { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; color: var(--text-soft); font-weight: 700; border-bottom: 1.5px solid var(--border); }
+.tri-head span:first-child, .tri-row .tri-nome { text-align: left; }
+.tri-row { border-bottom: 1px solid var(--border); }
+.tri-row .tri-nome { font-weight: 600; font-size: .8rem; }
+.tri-row.tri-tot { border-top: 2px solid var(--border); border-bottom: none; font-weight: 800; margin-top: 2px; }
+.tri-row.tri-tot .tri-nome { font-weight: 800; }
+
+/* ---------------------------- Voci preventivo --------------------------- */
+.voci-table { margin: 10px 0; border-top: 1px solid var(--border); }
+.voce-line { display: flex; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: .86rem; align-items: center; }
+.voce-line .d { flex: 1 1 auto; min-width: 0; }
+.voce-line .q { color: var(--text-soft); font-size: .78rem; white-space: nowrap; }
+.voce-line .t { font-weight: 700; white-space: nowrap; min-width: 70px; text-align: right; }
+
+.voce-input { margin-bottom: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.voce-input > input { width: 100%; padding: 9px 10px; font-size: 16px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); margin-bottom: 8px; }
+.voce-nums { display: flex; align-items: center; gap: 6px; }
+.voce-nums input { flex: 1; padding: 9px 8px; font-size: 16px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); min-width: 0; }
+.voce-nums .times { color: var(--text-soft); font-weight: 700; }
+.voce-nums .voce-del { background: var(--danger-soft); color: var(--danger); border: none; width: 40px; height: 40px; border-radius: 8px; cursor: pointer; font-size: 15px; flex: 0 0 auto; }
+
+.prev-badge { font-size: .72rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.prev-badge.s-bozza { background: var(--border); color: var(--text-soft); }
+.prev-badge.s-inviato { background: var(--primary-soft); color: var(--primary-dark); }
+.prev-badge.s-accettato { background: var(--ok-soft); color: var(--ok); }
+.prev-badge.s-rifiutato { background: var(--danger-soft); color: var(--danger); }
+
+/* ------------------------------ Galleria foto --------------------------- */
+.foto-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 4px; }
+@media (min-width: 520px) { .foto-grid { grid-template-columns: repeat(4, 1fr); } }
+.foto-item { position: relative; aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
+.foto-item img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; display: block; }
+.foto-del {
+  position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(15,23,42,.65); color: #fff; border: none; cursor: pointer; font-size: 13px;
+  display: grid; place-items: center; line-height: 1;
+}

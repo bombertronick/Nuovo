@@ -32,6 +32,16 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
   unico file, per non perderli o spostarli su un altro dispositivo.
 - 📱 **Funziona offline** e si può "aggiungere alla schermata Home" come un'app.
 
+- 📅 **Riepilogo IVA per trimestre e anno** — liquidazione IVA (debito/credito/netta)
+  suddivisa per i 4 trimestri, con totale annuo. Utile per il commercialista.
+- 📄 **Esportazione** — stampa/PDF della scheda cantiere e del riepilogo, più
+  esportazione **CSV** (apribile in Excel) di riepilogo IVA e movimenti.
+- 💰 **Scadenzario pagamenti** — fatture **da incassare** e spese **da pagare**,
+  con un tocco per segnarle saldate; totali sempre in vista.
+- 📝 **Preventivi** — crea un preventivo con voci di lavoro e, quando il cliente
+  accetta, **convertilo in fattura d'origine** con un tocco.
+- 🖼️ **Galleria foto per cantiere** — documenta i lavori (prima/durante/dopo).
+
 ---
 
 ## Come si usa

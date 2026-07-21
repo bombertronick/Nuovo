@@ -171,6 +171,8 @@
     if (route.name === 'dashboard') renderDashboard();
     else if (route.name === 'cantiere') renderCantiere(route.id);
     else if (route.name === 'archivio') renderArchivio();
+    else if (route.name === 'scadenzario') renderScadenzario();
+    else if (route.name === 'riepilogo') renderRiepilogoPeriodo();
     else renderDashboard();
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
@@ -208,6 +210,7 @@
     html += `<section class="view">`;
     html += `<div class="section-title">📊 Riepilogo IVA azienda</div>`;
     html += summaryGrid(g, true);
+    html += scadenzeBanner();
 
     // --- Spese generali (non legate a un cantiere) ---
     const speseGen = state.speseGenerali || [];
@@ -253,6 +256,13 @@
     // --- Archivio completati ---
     html += `<div class="section-title" style="margin-top:26px">✅ Cantieri completati <span class="count">${completati.length}</span></div>`;
     html += `<button class="btn btn-ghost btn-block" data-action="open-archivio">📁 Apri archivio completati (${completati.length})</button>`;
+
+    // --- Strumenti ---
+    html += `<div class="section-title" style="margin-top:22px">🧰 Strumenti</div>`;
+    html += `<div class="tools-grid">
+      <button class="tool-btn" data-action="open-scadenzario"><span class="ti">💰</span><span>Scadenzario<br>pagamenti</span></button>
+      <button class="tool-btn" data-action="open-riepilogo"><span class="ti">📅</span><span>Riepilogo IVA<br>per periodo</span></button>
+    </div>`;
 
     html += `</section>`;
     app().innerHTML = html;
@@ -349,6 +359,9 @@
     if (c.note) html += infoRow('Note', esc(c.note));
     html += `</div>`;
 
+    // Preventivo
+    html += preventivoSection(c);
+
     // Fattura d'origine
     html += `<div class="section-title">🧾 Fattura d'origine (al cliente)</div>`;
     html += `<div class="card">`;
@@ -359,10 +372,14 @@
       html += infoRow('Imponibile', euro(f.imponibile));
       html += infoRow(`IVA (${f.aliquota}%)`, euro(ivaOf(f.imponibile, f.aliquota)));
       html += infoRow('Totale fattura', `<b>${euro(totaleOf(f.imponibile, f.aliquota))}</b>`);
+      html += infoRow('Stato incasso', f.incassato
+        ? `<span class="pay-badge paid">✅ Incassata</span>`
+        : `<span class="pay-badge due">⏳ Da incassare</span>`);
       if (f.fileId) {
         html += `<div style="margin-top:10px"><a class="attachment-link" data-action="open-file" data-file="${f.fileId}" href="#">📎 ${esc(f.fileName || 'Allegato')}</a></div>`;
       }
       html += `<div class="row-actions">
+        <button class="btn ${f.incassato ? 'btn-ghost' : 'btn-ok'} btn-sm" data-action="toggle-incasso" data-id="${c.id}">${f.incassato ? '↩️ Segna da incassare' : '💰 Segna incassata'}</button>
         <button class="btn btn-ghost btn-sm" data-action="edit-fattura" data-id="${c.id}">✏️ Modifica</button>
         <button class="btn btn-danger btn-sm" data-action="del-fattura" data-id="${c.id}">🗑️ Rimuovi</button>
       </div>`;
@@ -386,8 +403,14 @@
     html += `<button class="btn btn-accent btn-block" style="margin-top:12px" data-action="add-spesa" data-id="${c.id}">➕ Aggiungi spesa (materiale/utensile)</button>`;
     html += `</div>`;
 
+    // Galleria foto
+    html += fotoSection(c);
+
     // Azioni cantiere
     html += `<hr class="divider">`;
+    html += `<div class="row-actions">
+      <button class="btn btn-ghost btn-block" data-action="stampa-cantiere" data-id="${c.id}">🖨️ Stampa scheda / salva PDF</button>
+    </div>`;
     html += `<div class="row-actions">`;
     if (completato) {
       html += `<button class="btn btn-ghost btn-block" data-action="riapri" data-id="${c.id}">↩️ Riapri cantiere (riporta tra gli attivi)</button>`;
@@ -415,17 +438,20 @@
     const tot = totaleOf(s.imponibile, s.aliquota);
     const sub = [s.fornitore, s.numeroDoc ? 'n.' + s.numeroDoc : '', fmtDate(s.data)].filter(Boolean).join(' · ');
     const fileLink = s.fileId ? `<a class="attachment-link" data-action="open-file" data-file="${s.fileId}" href="#">📎 ${esc(s.fileName || 'Allegato')}</a>` : '';
+    const payBadge = s.pagato ? `<span class="pay-badge paid">✅ Pagata</span>` : `<span class="pay-badge due">⏳ Da pagare</span>`;
     return `<div class="expense-row">
       <div class="ex-icon">${icon}</div>
       <div class="ex-body">
         <div class="ex-title">${esc(s.descrizione || (s.tipo === 'utensile' ? 'Utensile' : 'Materiale'))} <span class="tag-tipo">${s.tipo === 'utensile' ? 'UTENSILE' : 'MATERIALE'}</span></div>
         <div class="ex-sub">${esc(sub || '—')}</div>
+        <div style="margin-top:4px">${payBadge}</div>
         ${fileLink}
       </div>
       <div class="ex-amount">
         <div class="tot">${euro(tot)}</div>
         <div class="iva">IVA ${euro(iva)} (${s.aliquota}%)</div>
-        <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">
+        <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn ${s.pagato ? 'btn-ghost' : 'btn-ok'} btn-sm" data-action="toggle-pagato" data-owner="${ownerId}" data-id="${s.id}" style="padding:5px 8px" title="${s.pagato ? 'Segna da pagare' : 'Segna pagata'}">${s.pagato ? '↩️' : '💶'}</button>
           <button class="btn btn-ghost btn-sm" data-action="edit-spesa" data-owner="${ownerId}" data-id="${s.id}" style="padding:5px 8px">✏️</button>
           <button class="btn btn-danger btn-sm" data-action="del-spesa" data-owner="${ownerId}" data-id="${s.id}" style="padding:5px 8px">🗑️</button>
         </div>
@@ -473,8 +499,23 @@
       window.open(url, '_blank');
     } catch (e) { toast('Impossibile aprire l\'allegato'); }
   }
-  // (I link agli allegati usano data-action=open-file gestito dal delegato)
-  function caricaAllegatiVisibili() { /* placeholder: gli allegati si aprono on-demand */ }
+  // Carica le miniature delle foto (Blob da IndexedDB -> object URL) dopo il render.
+  async function caricaAllegatiVisibili() {
+    const imgs = document.querySelectorAll('img[data-thumb]');
+    for (const img of imgs) {
+      if (img.dataset.loaded) continue;
+      const id = img.dataset.thumb;
+      try {
+        const blob = await DB.getFile(id);
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          objectUrls.push(url);
+          img.src = url;
+          img.dataset.loaded = '1';
+        }
+      } catch (e) { /* ignora */ }
+    }
+  }
 
   /* ============================== MODALI =================================== */
   function openModal(title, bodyHtml, footHtml) {
@@ -541,7 +582,7 @@
       Object.assign(c, data);
       toast('Cantiere aggiornato');
     } else {
-      const c = Object.assign({ id: uid(), stato: 'attivo', fatturaOrigine: null, spese: [] }, data);
+      const c = Object.assign({ id: uid(), stato: 'attivo', fatturaOrigine: null, preventivo: null, spese: [], foto: [] }, data);
       state.cantieri.unshift(c);
       route = { name: 'cantiere', id: c.id };
       toast('Cantiere creato');
@@ -957,13 +998,51 @@
       case 'export-backup': exportBackup(); break;
       case 'import-backup': document.getElementById('import-input').click(); break;
       case 'new-cantiere': cantiereForm(null); break;
+      // --- nuove funzionalità ---
+      case 'open-scadenzario': releaseUrls(); route = { name: 'scadenzario' }; render(); break;
+      case 'open-riepilogo': releaseUrls(); route = { name: 'riepilogo' }; render(); break;
+      case 'toggle-incasso': toggleIncasso(id); break;
+      case 'toggle-pagato': togglePagato(owner, id); break;
+      case 'set-anno': riepilogoAnno = parseInt(t.dataset.anno, 10); render(); break;
+      case 'stampa-riepilogo': stampaRiepilogo(riepilogoAnno); break;
+      case 'export-csv-riepilogo': exportCSVRiepilogo(riepilogoAnno); break;
+      case 'export-csv-movimenti': exportCSVMovimenti(riepilogoAnno); break;
+      case 'add-preventivo': case 'edit-preventivo': preventivoForm(id); break;
+      case 'save-preventivo': savePreventivo(id); break;
+      case 'del-preventivo': delPreventivo(id); break;
+      case 'converti-preventivo': convertiPreventivo(id); break;
+      case 'pv-add-voce':
+        preventivoVoci.push({ descrizione: '', quantita: 1, prezzoUnitario: 0 });
+        renderVociInputs();
+        break;
+      case 'add-foto': addFoto(id); break;
+      case 'del-foto': await delFoto(id, t.dataset.foto); break;
+      case 'stampa-cantiere': stampaCantiere(id); break;
     }
+  });
+
+  // Sincronizza le voci del preventivo mentre si digita
+  document.addEventListener('input', (e) => {
+    const vf = e.target.closest('[data-vfield]');
+    if (!vf) return;
+    const i = parseInt(vf.dataset.i, 10);
+    if (!preventivoVoci[i]) return;
+    const field = vf.dataset.vfield;
+    preventivoVoci[i][field] = field === 'descrizione' ? vf.value : vf.value;
+    updatePvTotal();
   });
 
   // pulsanti dinamici dentro modale categorie (elimina)
   document.addEventListener('click', (e) => {
     const del = e.target.closest('[data-delcat]');
     if (del) delCategoria(del.dataset.delcat);
+    const dv = e.target.closest('[data-delvoce]');
+    if (dv) {
+      const i = parseInt(dv.dataset.delvoce, 10);
+      preventivoVoci.splice(i, 1);
+      if (!preventivoVoci.length) preventivoVoci.push({ descrizione: '', quantita: 1, prezzoUnitario: 0 });
+      renderVociInputs();
+    }
     const rem = e.target.closest('[data-removefile]');
     if (rem) {
       pendingFile = 'REMOVE';
@@ -995,6 +1074,7 @@
     // elimina allegati collegati
     if (c.fatturaOrigine && c.fatturaOrigine.fileId) await DB.deleteFile(c.fatturaOrigine.fileId);
     for (const s of (c.spese || [])) if (s.fileId) await DB.deleteFile(s.fileId);
+    for (const f of (c.foto || [])) if (f.fileId) await DB.deleteFile(f.fileId);
     state.cantieri = state.cantieri.filter(x => x.id !== id);
     persist(); route = { name: 'dashboard' }; render();
     toast('Cantiere eliminato');
@@ -1009,9 +1089,14 @@
     s.speseGenerali = Array.isArray(s.speseGenerali) ? s.speseGenerali : [];
     s.cantieri.forEach(c => {
       c.spese = Array.isArray(c.spese) ? c.spese : [];
+      c.foto = Array.isArray(c.foto) ? c.foto : [];
       if (c.fatturaOrigine === undefined) c.fatturaOrigine = null;
+      if (c.preventivo === undefined) c.preventivo = null;
+      if (c.fatturaOrigine && c.fatturaOrigine.incassato === undefined) c.fatturaOrigine.incassato = false;
+      c.spese.forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; });
       if (!c.stato) c.stato = 'attivo';
     });
+    (s.speseGenerali || []).forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; });
     return s;
   }
 
@@ -1028,6 +1113,538 @@
     // FAB e impostazioni
     document.getElementById('fab').addEventListener('click', () => cantiereForm(null));
     render();
+  }
+
+  /* =========================================================================
+     NUOVE FUNZIONALITÀ
+     - Scadenzario pagamenti (fatture da incassare / spese da pagare)
+     - Riepilogo IVA per trimestre/anno
+     - Preventivi (con conversione in fattura d'origine)
+     - Galleria foto per cantiere
+     - Esportazione CSV (Excel) e stampa/PDF
+     ========================================================================= */
+
+  /* ------------------------ Helper periodo (anno/trimestre) --------------- */
+  function annoOf(iso) { return iso ? parseInt(String(iso).slice(0, 4), 10) : 0; }
+  function trimestreOf(iso) {
+    const m = iso ? parseInt(String(iso).slice(5, 7), 10) : 0; // 1-12
+    return Math.floor((m - 1) / 3) + 1; // 1-4
+  }
+  function anniDisponibili() {
+    const set = new Set();
+    const add = d => { const y = annoOf(d); if (y) set.add(y); };
+    state.cantieri.forEach(c => { if (c.fatturaOrigine) add(c.fatturaOrigine.data); (c.spese || []).forEach(s => add(s.data)); });
+    (state.speseGenerali || []).forEach(s => add(s.data));
+    set.add(annoOf(todayISO()));
+    return Array.from(set).filter(Boolean).sort((a, b) => b - a);
+  }
+  function datiTrimestrali(year) {
+    const tri = [{ debito: 0, credito: 0 }, { debito: 0, credito: 0 }, { debito: 0, credito: 0 }, { debito: 0, credito: 0 }];
+    state.cantieri.forEach(c => {
+      const f = c.fatturaOrigine;
+      if (f && annoOf(f.data) === year) tri[trimestreOf(f.data) - 1].debito += ivaOf(f.imponibile, f.aliquota);
+      (c.spese || []).forEach(s => { if (annoOf(s.data) === year) tri[trimestreOf(s.data) - 1].credito += ivaOf(s.imponibile, s.aliquota); });
+    });
+    (state.speseGenerali || []).forEach(s => { if (annoOf(s.data) === year) tri[trimestreOf(s.data) - 1].credito += ivaOf(s.imponibile, s.aliquota); });
+    return tri;
+  }
+
+  /* ------------------------------ Scadenzario ----------------------------- */
+  function scadenzeTotali() {
+    let daIncassare = 0, daPagare = 0;
+    state.cantieri.forEach(c => {
+      if (c.fatturaOrigine && !c.fatturaOrigine.incassato) daIncassare += totaleOf(c.fatturaOrigine.imponibile, c.fatturaOrigine.aliquota);
+      (c.spese || []).forEach(s => { if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota); });
+    });
+    (state.speseGenerali || []).forEach(s => { if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota); });
+    return { daIncassare, daPagare };
+  }
+
+  function scadenzeBanner() {
+    const t = scadenzeTotali();
+    if (!t.daIncassare && !t.daPagare) return '';
+    return `<button class="scad-banner" data-action="open-scadenzario">
+      <span>💰 Da incassare<br><b>${euro(t.daIncassare)}</b></span>
+      <span class="sep"></span>
+      <span>💶 Da pagare<br><b>${euro(t.daPagare)}</b></span>
+    </button>`;
+  }
+
+  function renderScadenzario() {
+    const daIncassare = [], incassate = [], daPagare = [], pagate = [];
+    state.cantieri.forEach(c => {
+      if (c.fatturaOrigine) {
+        const f = c.fatturaOrigine;
+        const item = {
+          kind: 'fattura', cantId: c.id, titolo: c.nome,
+          sub: [f.numero ? 'Fatt. ' + f.numero : 'Fattura', c.cliente, fmtDate(f.data)].filter(Boolean).join(' · '),
+          tot: totaleOf(f.imponibile, f.aliquota)
+        };
+        (f.incassato ? incassate : daIncassare).push(item);
+      }
+      (c.spese || []).forEach(s => {
+        const item = {
+          kind: 'spesa', owner: c.id, id: s.id, cantId: c.id, titolo: s.descrizione || 'Spesa',
+          sub: [c.nome, s.fornitore, fmtDate(s.data)].filter(Boolean).join(' · '),
+          tot: totaleOf(s.imponibile, s.aliquota)
+        };
+        (s.pagato ? pagate : daPagare).push(item);
+      });
+    });
+    (state.speseGenerali || []).forEach(s => {
+      const item = {
+        kind: 'spesa', owner: 'generale', id: s.id, titolo: s.descrizione || 'Spesa generale',
+        sub: ['Spesa generale', s.fornitore, fmtDate(s.data)].filter(Boolean).join(' · '),
+        tot: totaleOf(s.imponibile, s.aliquota)
+      };
+      (s.pagato ? pagate : daPagare).push(item);
+    });
+
+    const sum = arr => arr.reduce((a, i) => a + i.tot, 0);
+
+    let html = `<section class="view">`;
+    html += `<div class="detail-header">
+      <button class="back-btn" data-action="back">←</button>
+      <div style="flex:1 1 auto"><h2>💰 Scadenzario pagamenti</h2>
+      <div class="dh-sub">Fatture da incassare e spese da pagare</div></div>
+    </div>`;
+
+    html += `<div class="summary-grid" style="grid-template-columns:repeat(2,1fr)">
+      <div class="stat netta"><div class="label">Da incassare</div><div class="value" style="color:var(--ok)">${euro(sum(daIncassare))}</div><div class="hint">${daIncassare.length} fatture</div></div>
+      <div class="stat netta"><div class="label">Da pagare</div><div class="value" style="color:var(--warn)">${euro(sum(daPagare))}</div><div class="hint">${daPagare.length} spese</div></div>
+    </div>`;
+
+    html += scadGroup('⏳ Fatture da incassare', daIncassare, false);
+    html += scadGroup('⏳ Spese da pagare', daPagare, false);
+    html += scadGroup('✅ Fatture incassate', incassate, true);
+    html += scadGroup('✅ Spese pagate', pagate, true);
+
+    if (!daIncassare.length && !incassate.length && !daPagare.length && !pagate.length) {
+      html += emptyState('💰', 'Nessun movimento', 'Aggiungi fatture e spese ai cantieri per vedere qui lo scadenzario.');
+    }
+    html += `</section>`;
+    app().innerHTML = html;
+    document.getElementById('fab').classList.add('hidden');
+  }
+
+  function scadGroup(title, items, done) {
+    if (!items.length) return '';
+    let h = `<div class="section-title">${title} <span class="count">${items.length}</span></div>`;
+    h += `<div class="card">`;
+    h += items.map(i => {
+      const toggle = i.kind === 'fattura'
+        ? `<button class="btn ${done ? 'btn-ghost' : 'btn-ok'} btn-sm" data-action="toggle-incasso" data-id="${i.cantId}" style="padding:6px 10px">${done ? '↩️' : '✅'}</button>`
+        : `<button class="btn ${done ? 'btn-ghost' : 'btn-ok'} btn-sm" data-action="toggle-pagato" data-owner="${i.owner}" data-id="${i.id}" style="padding:6px 10px">${done ? '↩️' : '✅'}</button>`;
+      const openAttr = i.cantId ? `data-action="open-cantiere" data-id="${i.cantId}"` : '';
+      return `<div class="expense-row">
+        <div class="ex-body" ${openAttr} style="cursor:${i.cantId ? 'pointer' : 'default'}">
+          <div class="ex-title">${esc(i.titolo)}</div>
+          <div class="ex-sub">${esc(i.sub)}</div>
+        </div>
+        <div class="ex-amount">
+          <div class="tot">${euro(i.tot)}</div>
+          <div style="margin-top:6px">${toggle}</div>
+        </div>
+      </div>`;
+    }).join('');
+    h += `</div>`;
+    return h;
+  }
+
+  function toggleIncasso(cantId) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    if (!c || !c.fatturaOrigine) return;
+    c.fatturaOrigine.incassato = !c.fatturaOrigine.incassato;
+    if (c.fatturaOrigine.incassato) c.fatturaOrigine.dataIncasso = todayISO();
+    persist(); render();
+    toast(c.fatturaOrigine.incassato ? 'Fattura incassata ✅' : 'Fattura da incassare');
+  }
+  function togglePagato(owner, id) {
+    const list = owner === 'generale' ? state.speseGenerali : state.cantieri.find(x => x.id === owner).spese;
+    const s = list.find(x => x.id === id);
+    if (!s) return;
+    s.pagato = !s.pagato;
+    if (s.pagato) s.dataPagamento = todayISO();
+    persist(); render();
+    toast(s.pagato ? 'Spesa pagata ✅' : 'Spesa da pagare');
+  }
+
+  /* -------------------------- Riepilogo IVA periodo ----------------------- */
+  let riepilogoAnno = null;
+
+  function renderRiepilogoPeriodo() {
+    const anni = anniDisponibili();
+    if (riepilogoAnno == null || anni.indexOf(riepilogoAnno) < 0) riepilogoAnno = anni[0];
+    const tri = datiTrimestrali(riepilogoAnno);
+    const totDeb = tri.reduce((a, t) => a + t.debito, 0);
+    const totCre = tri.reduce((a, t) => a + t.credito, 0);
+
+    let html = `<section class="view">`;
+    html += `<div class="detail-header">
+      <button class="back-btn" data-action="back">←</button>
+      <div style="flex:1 1 auto"><h2>📅 Riepilogo IVA</h2>
+      <div class="dh-sub">Liquidazione per trimestre e anno</div></div>
+    </div>`;
+
+    html += `<div class="chips">` + anni.map(y =>
+      `<button class="chip ${y === riepilogoAnno ? 'active' : ''}" data-action="set-anno" data-anno="${y}">${y}</button>`).join('') + `</div>`;
+
+    html += `<div class="card" style="margin-top:8px">`;
+    html += `<div class="tri-head"><span>Periodo ${riepilogoAnno}</span><span>Debito</span><span>Credito</span><span>Netta</span></div>`;
+    const nomiTri = ['1° trim. (gen–mar)', '2° trim. (apr–giu)', '3° trim. (lug–set)', '4° trim. (ott–dic)'];
+    tri.forEach((t, i) => {
+      const netta = t.debito - t.credito;
+      html += `<div class="tri-row">
+        <span class="tri-nome">${nomiTri[i]}</span>
+        <span>${euro(t.debito)}</span>
+        <span style="color:var(--ok)">${euro(t.credito)}</span>
+        <span style="font-weight:800;color:${netta < 0 ? 'var(--ok)' : 'var(--warn)'}">${euro(Math.abs(netta))}${netta < 0 ? ' C' : ''}</span>
+      </div>`;
+    });
+    const nettaAnno = totDeb - totCre;
+    html += `<div class="tri-row tri-tot">
+      <span class="tri-nome">Totale ${riepilogoAnno}</span>
+      <span>${euro(totDeb)}</span>
+      <span style="color:var(--ok)">${euro(totCre)}</span>
+      <span style="font-weight:800;color:${nettaAnno < 0 ? 'var(--ok)' : 'var(--warn)'}">${euro(Math.abs(nettaAnno))}${nettaAnno < 0 ? ' C' : ''}</span>
+    </div>`;
+    html += `</div>`;
+    html += `<p class="mini-note" style="text-align:center">Netta = IVA a debito − IVA a credito. "C" = a tuo credito. I movimenti sono attribuiti al trimestre in base alla loro data.</p>`;
+
+    html += `<div class="section-title">📤 Esporta</div>`;
+    html += `<div class="tools-grid tools-3">
+      <button class="tool-btn" data-action="stampa-riepilogo"><span class="ti">🖨️</span><span>Stampa /<br>PDF</span></button>
+      <button class="tool-btn" data-action="export-csv-riepilogo"><span class="ti">📊</span><span>CSV<br>riepilogo</span></button>
+      <button class="tool-btn" data-action="export-csv-movimenti"><span class="ti">📋</span><span>CSV<br>movimenti</span></button>
+    </div>`;
+
+    html += `</section>`;
+    app().innerHTML = html;
+    document.getElementById('fab').classList.add('hidden');
+  }
+
+  /* ------------------------------ Preventivi ------------------------------ */
+  let preventivoVoci = [];
+
+  function statoPreventivoLabel(s) {
+    return { bozza: '📝 Bozza', inviato: '📤 Inviato', accettato: '✅ Accettato', rifiutato: '❌ Rifiutato' }[s] || s;
+  }
+  function preventivoImponibile(p) {
+    return (p.voci || []).reduce((a, v) => a + num(v.quantita) * num(v.prezzoUnitario), 0);
+  }
+
+  function preventivoSection(c) {
+    let h = `<div class="section-title">📝 Preventivo</div>`;
+    h += `<div class="card">`;
+    if (c.preventivo) {
+      const p = c.preventivo;
+      const imp = preventivoImponibile(p);
+      h += infoRow('Numero', p.numero || '—');
+      h += infoRow('Data', fmtDate(p.data));
+      h += infoRow('Stato', `<span class="prev-badge s-${p.stato}">${statoPreventivoLabel(p.stato)}</span>`);
+      if (p.voci && p.voci.length) {
+        h += `<div class="voci-table">` + p.voci.map(v =>
+          `<div class="voce-line"><span class="d">${esc(v.descrizione || '—')}</span><span class="q">${num(v.quantita)} × ${euro(v.prezzoUnitario)}</span><span class="t">${euro(num(v.quantita) * num(v.prezzoUnitario))}</span></div>`).join('') + `</div>`;
+      }
+      h += infoRow('Imponibile', euro(imp));
+      h += infoRow(`IVA (${p.aliquota}%)`, euro(ivaOf(imp, p.aliquota)));
+      h += infoRow('Totale preventivo', `<b>${euro(totaleOf(imp, p.aliquota))}</b>`);
+      if (p.note) h += `<p class="mini-note" style="margin-top:8px">${esc(p.note)}</p>`;
+      h += `<div class="row-actions">
+        <button class="btn btn-ok btn-sm" data-action="converti-preventivo" data-id="${c.id}">➡️ Converti in fattura</button>
+        <button class="btn btn-ghost btn-sm" data-action="edit-preventivo" data-id="${c.id}">✏️ Modifica</button>
+        <button class="btn btn-danger btn-sm" data-action="del-preventivo" data-id="${c.id}">🗑️</button>
+      </div>`;
+    } else {
+      h += `<p class="mini-note">Crea un preventivo con le voci di lavoro. Quando il cliente accetta, lo converti in fattura d'origine con un tocco.</p>`;
+      h += `<button class="btn btn-ghost btn-block" style="margin-top:12px" data-action="add-preventivo" data-id="${c.id}">➕ Crea preventivo</button>`;
+    }
+    h += `</div>`;
+    return h;
+  }
+
+  function preventivoForm(cantId) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    const p = c.preventivo || { numero: '', data: todayISO(), aliquota: DEFAULT_ALIQUOTA, stato: 'bozza', note: '', voci: [] };
+    preventivoVoci = (p.voci && p.voci.length) ? p.voci.map(v => ({ descrizione: v.descrizione, quantita: v.quantita, prezzoUnitario: v.prezzoUnitario }))
+      : [{ descrizione: '', quantita: 1, prezzoUnitario: 0 }];
+    const body = `
+      <div class="field-row">
+        <div class="field"><label>Numero preventivo</label><input id="pv-num" type="text" value="${esc(p.numero || '')}" placeholder="Es. P-2026/07"></div>
+        <div class="field"><label>Data</label><input id="pv-data" type="date" value="${esc(p.data || todayISO())}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Aliquota IVA</label>${aliquotaSelect('pv-aliq', p.aliquota)}</div>
+        <div class="field"><label>Stato</label>
+          <select id="pv-stato">${['bozza', 'inviato', 'accettato', 'rifiutato'].map(s => `<option value="${s}" ${p.stato === s ? 'selected' : ''}>${statoPreventivoLabel(s)}</option>`).join('')}</select>
+        </div>
+      </div>
+      <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-soft);margin-bottom:6px">Voci del preventivo</label>
+      <div id="pv-voci"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-action="pv-add-voce" style="margin-top:4px">➕ Aggiungi voce</button>
+      <div class="iva-preview" id="pv-tot" style="margin-top:12px"></div>
+      <div class="field" style="margin-top:12px"><label>Note</label><textarea id="pv-note" placeholder="Condizioni, tempi, validità offerta...">${esc(p.note || '')}</textarea></div>
+    `;
+    const foot = `<button class="btn btn-ghost" data-action="close-modal">Annulla</button>
+      <button class="btn btn-primary btn-block" data-action="save-preventivo" data-id="${cantId}">💾 Salva preventivo</button>`;
+    openModal(c.preventivo ? 'Modifica preventivo' : 'Nuovo preventivo', body, foot);
+    renderVociInputs();
+    const aliq = document.getElementById('pv-aliq');
+    if (aliq) aliq.addEventListener('change', updatePvTotal);
+  }
+
+  function renderVociInputs() {
+    const box = document.getElementById('pv-voci');
+    if (!box) return;
+    box.innerHTML = preventivoVoci.map((v, i) => `
+      <div class="voce-input" data-voce="${i}">
+        <input type="text" data-vfield="descrizione" data-i="${i}" value="${esc(v.descrizione || '')}" placeholder="Descrizione voce">
+        <div class="voce-nums">
+          <input type="number" inputmode="decimal" step="0.01" data-vfield="quantita" data-i="${i}" value="${v.quantita}" placeholder="Q.tà" aria-label="Quantità">
+          <span class="times">×</span>
+          <input type="number" inputmode="decimal" step="0.01" data-vfield="prezzoUnitario" data-i="${i}" value="${v.prezzoUnitario}" placeholder="Prezzo €" aria-label="Prezzo unitario">
+          <button type="button" class="voce-del" data-delvoce="${i}" title="Rimuovi voce">🗑️</button>
+        </div>
+      </div>`).join('');
+    updatePvTotal();
+  }
+
+  function updatePvTotal() {
+    const el = document.getElementById('pv-tot');
+    if (!el) return;
+    const imp = preventivoVoci.reduce((a, v) => a + num(v.quantita) * num(v.prezzoUnitario), 0);
+    const aliqEl = document.getElementById('pv-aliq');
+    const aliq = aliqEl ? num(aliqEl.value) : DEFAULT_ALIQUOTA;
+    el.innerHTML = `<span>Imponibile: ${euro(imp)}</span><span>Totale: ${euro(totaleOf(imp, aliq))}</span>`;
+  }
+
+  function savePreventivo(cantId) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    const voci = preventivoVoci
+      .map(v => ({ descrizione: (v.descrizione || '').trim(), quantita: num(v.quantita), prezzoUnitario: num(v.prezzoUnitario) }))
+      .filter(v => v.descrizione || v.prezzoUnitario);
+    if (!voci.length) { toast('Aggiungi almeno una voce con descrizione o prezzo'); return; }
+    c.preventivo = {
+      numero: document.getElementById('pv-num').value.trim(),
+      data: document.getElementById('pv-data').value || '',
+      aliquota: num(document.getElementById('pv-aliq').value),
+      stato: document.getElementById('pv-stato').value,
+      note: document.getElementById('pv-note').value.trim(),
+      voci
+    };
+    persist(); closeModal(); render(); toast('Preventivo salvato');
+  }
+
+  function delPreventivo(cantId) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    if (!confirm('Eliminare il preventivo di questo cantiere?')) return;
+    c.preventivo = null;
+    persist(); render(); toast('Preventivo eliminato');
+  }
+
+  function convertiPreventivo(cantId) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    if (!c.preventivo) return;
+    if (c.fatturaOrigine && !confirm('Esiste già una fattura d\'origine: sostituire imponibile e aliquota con quelli del preventivo? (l\'allegato viene mantenuto)')) return;
+    const imp = preventivoImponibile(c.preventivo);
+    const prevFile = c.fatturaOrigine ? { fileId: c.fatturaOrigine.fileId, fileName: c.fatturaOrigine.fileName } : { fileId: null, fileName: null };
+    c.fatturaOrigine = {
+      numero: c.fatturaOrigine ? c.fatturaOrigine.numero : '',
+      data: todayISO(),
+      imponibile: imp,
+      aliquota: c.preventivo.aliquota,
+      incassato: c.fatturaOrigine ? !!c.fatturaOrigine.incassato : false,
+      fileId: prevFile.fileId, fileName: prevFile.fileName
+    };
+    c.preventivo.stato = 'accettato';
+    persist(); render(); toast('Preventivo convertito in fattura d\'origine');
+  }
+
+  /* ------------------------------ Galleria foto --------------------------- */
+  function fotoSection(c) {
+    const foto = c.foto || [];
+    let h = `<div class="section-title">🖼️ Foto del cantiere <span class="count">${foto.length}</span></div>`;
+    h += `<div class="card">`;
+    if (foto.length) {
+      h += `<div class="foto-grid">` + foto.map(f =>
+        `<div class="foto-item">
+          <img data-thumb="${f.fileId}" data-action="open-file" data-file="${f.fileId}" alt="${esc(f.caption || 'Foto cantiere')}">
+          <button class="foto-del" data-action="del-foto" data-id="${c.id}" data-foto="${f.id}" title="Elimina foto">✕</button>
+        </div>`).join('') + `</div>`;
+    } else {
+      h += `<p class="mini-note">Documenta i lavori con foto (prima / durante / dopo). Tocca una foto per aprirla a schermo intero.</p>`;
+    }
+    h += `<input id="foto-input-${c.id}" type="file" accept="image/*" capture="environment" class="hidden" multiple>`;
+    h += `<button class="btn btn-ghost btn-block" style="margin-top:12px" data-action="add-foto" data-id="${c.id}">📷 Aggiungi foto</button>`;
+    h += `</div>`;
+    return h;
+  }
+
+  function addFoto(cantId) {
+    const input = document.getElementById('foto-input-' + cantId);
+    if (!input) return;
+    input.onchange = async () => {
+      const files = Array.from(input.files || []);
+      if (!files.length) return;
+      const c = state.cantieri.find(x => x.id === cantId);
+      for (const file of files) {
+        const fileId = uid();
+        await DB.saveFile(fileId, file);
+        c.foto.push({ id: uid(), fileId, fileName: file.name, data: todayISO(), caption: '' });
+      }
+      persist(); render();
+      toast(files.length > 1 ? files.length + ' foto aggiunte' : 'Foto aggiunta');
+    };
+    input.click();
+  }
+
+  async function delFoto(cantId, fotoId) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    const idx = c.foto.findIndex(f => f.id === fotoId);
+    if (idx < 0) return;
+    if (!confirm('Eliminare questa foto?')) return;
+    if (c.foto[idx].fileId) await DB.deleteFile(c.foto[idx].fileId);
+    c.foto.splice(idx, 1);
+    persist(); render(); toast('Foto eliminata');
+  }
+
+  /* --------------------------- Esportazione CSV --------------------------- */
+  function csvCell(v) {
+    const s = String(v == null ? '' : v);
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function csvNum(n) { return (Number(n) || 0).toFixed(2).replace('.', ','); }
+  function downloadTextFile(name, content, mime) {
+    const blob = new Blob(['﻿' + content], { type: mime + ';charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  function exportCSVRiepilogo(year) {
+    const tri = datiTrimestrali(year);
+    const nomi = ['1° trimestre', '2° trimestre', '3° trimestre', '4° trimestre'];
+    let rows = ['Periodo;IVA a debito;IVA a credito;IVA netta'];
+    tri.forEach((t, i) => rows.push(`${nomi[i]} ${year};${csvNum(t.debito)};${csvNum(t.credito)};${csvNum(t.debito - t.credito)}`));
+    const td = tri.reduce((a, t) => a + t.debito, 0), tc = tri.reduce((a, t) => a + t.credito, 0);
+    rows.push(`Totale ${year};${csvNum(td)};${csvNum(tc)};${csvNum(td - tc)}`);
+    downloadTextFile(`riepilogo-iva-${year}.csv`, rows.join('\n'), 'text/csv');
+    toast('CSV riepilogo esportato');
+  }
+
+  function exportCSVMovimenti(year) {
+    let rows = ['Data;Tipo;Cantiere;Descrizione;Controparte;Imponibile;Aliquota;IVA;Totale;Stato'];
+    const push = (data, tipo, cant, descr, contro, imp, aliq, stato) =>
+      rows.push([data, tipo, csvCell(cant), csvCell(descr), csvCell(contro), csvNum(imp), aliq + '%', csvNum(ivaOf(imp, aliq)), csvNum(totaleOf(imp, aliq)), stato].join(';'));
+    state.cantieri.forEach(c => {
+      const f = c.fatturaOrigine;
+      if (f && annoOf(f.data) === year) push(f.data, 'Fattura emessa', c.nome, 'Fattura ' + (f.numero || ''), c.cliente || '', f.imponibile, f.aliquota, f.incassato ? 'Incassata' : 'Da incassare');
+      (c.spese || []).forEach(s => { if (annoOf(s.data) === year) push(s.data, s.tipo === 'utensile' ? 'Spesa utensile' : 'Spesa materiale', c.nome, s.descrizione || '', s.fornitore || '', s.imponibile, s.aliquota, s.pagato ? 'Pagata' : 'Da pagare'); });
+    });
+    (state.speseGenerali || []).forEach(s => { if (annoOf(s.data) === year) push(s.data, s.tipo === 'utensile' ? 'Spesa utensile' : 'Spesa materiale', '(generale)', s.descrizione || '', s.fornitore || '', s.imponibile, s.aliquota, s.pagato ? 'Pagata' : 'Da pagare'); });
+    if (rows.length === 1) { toast('Nessun movimento per il ' + year); return; }
+    downloadTextFile(`movimenti-${year}.csv`, rows.join('\n'), 'text/csv');
+    toast('CSV movimenti esportato');
+  }
+
+  /* ------------------------------ Stampa / PDF ---------------------------- */
+  const PRINT_CSS = `
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; margin: 28px; }
+    h1 { font-size: 20px; margin: 0 0 2px; }
+    h2 { font-size: 15px; margin: 0 0 16px; color: #444; font-weight: 600; }
+    h3 { font-size: 13px; margin: 18px 0 6px; border-bottom: 2px solid #1e5eff; padding-bottom: 3px; color: #1e5eff; }
+    table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; font-size: 12px; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+    th { background: #f0f4ff; }
+    td.n, th.n { text-align: right; }
+    .tot td { font-weight: bold; background: #fafafa; }
+    .kv { font-size: 12px; margin: 2px 0; }
+    .kv b { display: inline-block; min-width: 130px; color: #555; font-weight: 600; }
+    .foot { margin-top: 24px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 8px; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eef; }
+  `;
+  function openPrint(title, inner) {
+    const w = window.open('', '_blank');
+    if (!w) { toast('Consenti i popup per stampare / salvare PDF'); return; }
+    w.document.write(`<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${PRINT_CSS}</style></head><body>
+      <h1>${esc(state.azienda || 'Impresa')}</h1>
+      <h2>${esc(title)}</h2>
+      ${inner}
+      <div class="foot">Documento generato dal Gestionale Cantieri — ${fmtDate(todayISO())}</div>
+    </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
+  }
+
+  function stampaCantiere(cantId) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    if (!c) return;
+    const r = cantiereRiepilogo(c);
+    let h = `<div class="kv"><b>Cantiere:</b> ${esc(c.nome)}</div>`;
+    h += `<div class="kv"><b>Cliente:</b> ${esc(c.cliente || '—')}</div>`;
+    h += `<div class="kv"><b>Indirizzo:</b> ${esc(c.indirizzo || '—')}</div>`;
+    h += `<div class="kv"><b>Categoria:</b> ${esc(categoriaNome(c.categoriaId))}</div>`;
+    h += `<div class="kv"><b>Stato:</b> ${c.stato === 'completato' ? 'Completato' : 'In corso'}</div>`;
+    h += `<div class="kv"><b>Inizio lavori:</b> ${fmtDate(c.dataInizio)}</div>`;
+    if (c.stato === 'completato') h += `<div class="kv"><b>Fine lavori:</b> ${fmtDate(c.dataFine)}</div>`;
+
+    if (c.preventivo) {
+      const p = c.preventivo, imp = preventivoImponibile(p);
+      h += `<h3>Preventivo ${esc(p.numero || '')} — ${statoPreventivoLabel(p.stato).replace(/^[^ ]+ /, '')}</h3>`;
+      h += `<table><thead><tr><th>Voce</th><th class="n">Q.tà</th><th class="n">Prezzo</th><th class="n">Importo</th></tr></thead><tbody>`;
+      (p.voci || []).forEach(v => h += `<tr><td>${esc(v.descrizione || '')}</td><td class="n">${num(v.quantita)}</td><td class="n">${euro(v.prezzoUnitario)}</td><td class="n">${euro(num(v.quantita) * num(v.prezzoUnitario))}</td></tr>`);
+      h += `<tr class="tot"><td colspan="3">Imponibile</td><td class="n">${euro(imp)}</td></tr>`;
+      h += `<tr class="tot"><td colspan="3">Totale (IVA ${p.aliquota}%)</td><td class="n">${euro(totaleOf(imp, p.aliquota))}</td></tr>`;
+      h += `</tbody></table>`;
+    }
+
+    if (c.fatturaOrigine) {
+      const f = c.fatturaOrigine;
+      h += `<h3>Fattura d'origine</h3>`;
+      h += `<div class="kv"><b>Numero:</b> ${esc(f.numero || '—')} &nbsp; <b style="min-width:auto">Data:</b> ${fmtDate(f.data)}</div>`;
+      h += `<table><tbody>
+        <tr><td>Imponibile</td><td class="n">${euro(f.imponibile)}</td></tr>
+        <tr><td>IVA (${f.aliquota}%)</td><td class="n">${euro(ivaOf(f.imponibile, f.aliquota))}</td></tr>
+        <tr class="tot"><td>Totale fattura</td><td class="n">${euro(totaleOf(f.imponibile, f.aliquota))}</td></tr>
+        <tr><td>Stato incasso</td><td class="n">${f.incassato ? 'Incassata' : 'Da incassare'}</td></tr>
+      </tbody></table>`;
+    }
+
+    const spese = c.spese || [];
+    if (spese.length) {
+      h += `<h3>Spese materiali e utensili</h3>`;
+      h += `<table><thead><tr><th>Descrizione</th><th>Tipo</th><th>Fornitore</th><th>Data</th><th class="n">Imponibile</th><th class="n">IVA</th><th class="n">Totale</th><th>Pagata</th></tr></thead><tbody>`;
+      spese.forEach(s => h += `<tr><td>${esc(s.descrizione || '')}</td><td>${s.tipo === 'utensile' ? 'Utensile' : 'Materiale'}</td><td>${esc(s.fornitore || '')}</td><td>${fmtDate(s.data)}</td><td class="n">${euro(s.imponibile)}</td><td class="n">${euro(ivaOf(s.imponibile, s.aliquota))}</td><td class="n">${euro(totaleOf(s.imponibile, s.aliquota))}</td><td>${s.pagato ? 'Sì' : 'No'}</td></tr>`);
+      h += `</tbody></table>`;
+    }
+
+    h += `<h3>Riepilogo IVA cantiere</h3>`;
+    h += `<table><tbody>
+      <tr><td>IVA a debito (fattura)</td><td class="n">${euro(r.ivaDebito)}</td></tr>
+      <tr><td>IVA a credito (spese)</td><td class="n">${euro(r.ivaCredito)}</td></tr>
+      <tr class="tot"><td>IVA netta ${r.ivaNetta < 0 ? '(a credito)' : '(da versare)'}</td><td class="n">${euro(Math.abs(r.ivaNetta))}</td></tr>
+      <tr class="tot"><td>Margine (ricavi − costi)</td><td class="n">${euro(r.margine)}</td></tr>
+    </tbody></table>`;
+    if (c.note) h += `<h3>Note</h3><div class="kv">${esc(c.note)}</div>`;
+
+    openPrint('Scheda cantiere — ' + c.nome, h);
+  }
+
+  function stampaRiepilogo(year) {
+    const tri = datiTrimestrali(year);
+    const nomi = ['1° trimestre (gen–mar)', '2° trimestre (apr–giu)', '3° trimestre (lug–set)', '4° trimestre (ott–dic)'];
+    let h = `<h3>Liquidazione IVA ${year}</h3>`;
+    h += `<table><thead><tr><th>Periodo</th><th class="n">IVA a debito</th><th class="n">IVA a credito</th><th class="n">IVA netta</th></tr></thead><tbody>`;
+    let td = 0, tc = 0;
+    tri.forEach((t, i) => { td += t.debito; tc += t.credito; const n = t.debito - t.credito; h += `<tr><td>${nomi[i]}</td><td class="n">${euro(t.debito)}</td><td class="n">${euro(t.credito)}</td><td class="n">${euro(Math.abs(n))}${n < 0 ? ' (cr.)' : ''}</td></tr>`; });
+    const nAnno = td - tc;
+    h += `<tr class="tot"><td>Totale ${year}</td><td class="n">${euro(td)}</td><td class="n">${euro(tc)}</td><td class="n">${euro(Math.abs(nAnno))}${nAnno < 0 ? ' (cr.)' : ''}</td></tr>`;
+    h += `</tbody></table>`;
+    h += `<p style="font-size:11px;color:#666">IVA netta = IVA a debito − IVA a credito. "(cr.)" indica un credito IVA a tuo favore.</p>`;
+    openPrint('Riepilogo IVA ' + year, h);
   }
 
   document.addEventListener('DOMContentLoaded', boot);
