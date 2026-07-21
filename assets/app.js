@@ -904,6 +904,10 @@
       </div>
       <input id="import-input" type="file" accept="application/json,.json" class="hidden">
       <hr class="divider">
+      <div class="section-title" style="margin-top:0">🧪 Prova rapida</div>
+      <p class="mini-note">Carica alcuni cantieri di esempio già compilati (fatture, spese, preventivo, cantiere completato) per esplorare tutte le funzioni. Potrai eliminarli quando vuoi.</p>
+      <button class="btn btn-ghost btn-block" data-action="carica-demo" style="margin-top:10px">🧪 Carica dati dimostrativi</button>
+      <hr class="divider">
       <div class="section-title" style="margin-top:0">📈 Totali</div>
       <div class="card">
         ${infoRow('Cantieri totali', String(state.cantieri.length))}
@@ -999,6 +1003,7 @@
       case 'save-settings': saveSettings(); break;
       case 'export-backup': exportBackup(); break;
       case 'import-backup': document.getElementById('import-input').click(); break;
+      case 'carica-demo': caricaDatiDemo(); break;
       case 'new-cantiere': cantiereForm(null); break;
       // --- nuove funzionalità ---
       case 'open-scadenzario': releaseUrls(); route = { name: 'scadenzario' }; render(); break;
@@ -1814,6 +1819,81 @@
     }
 
     openPrint(titolo, h);
+  }
+
+  /* --------------------------- Dati dimostrativi -------------------------- */
+  function caricaDatiDemo() {
+    const hasData = state.cantieri.length > 0 || (state.speseGenerali || []).length > 0;
+    const msg = hasData
+      ? 'Aggiungere alcuni cantieri di esempio ai tuoi dati attuali? Potrai eliminarli quando vuoi.'
+      : 'Caricare alcuni cantieri di esempio per provare tutte le funzioni?';
+    if (!confirm(msg)) return;
+
+    const y = annoOf(todayISO());
+    const dt = (m, g) => `${y}-${String(m).padStart(2, '0')}-${String(g).padStart(2, '0')}`;
+    const catId = i => (state.categorie[i] ? state.categorie[i].id : '');
+    const spesa = (descr, tipo, forn, imp, aliq, data, pagato) =>
+      ({ id: uid(), descrizione: descr, tipo, fornitore: forn, numeroDoc: '', imponibile: imp, aliquota: aliq, data, fileId: null, fileName: null, pagato });
+
+    const demo = [
+      {
+        id: uid(), stato: 'attivo', categoriaId: catId(0),
+        nome: 'Ristrutturazione Via Verdi 8', cliente: 'Sig. Bianchi', indirizzo: 'Via Verdi 8, Milano',
+        dataInizio: dt(2, 1), dataFine: '', note: 'Rifacimento completo impianto e finiture.',
+        preventivo: {
+          numero: 'P-' + y + '/03', data: dt(1, 25), aliquota: 22, stato: 'accettato',
+          note: 'Offerta valida 30 giorni.',
+          voci: [
+            { descrizione: 'Rifacimento impianto elettrico', quantita: 1, prezzoUnitario: 11000 },
+            { descrizione: 'Punti luce e prese aggiuntivi', quantita: 20, prezzoUnitario: 200 }
+          ]
+        },
+        fatturaOrigine: { numero: y + '/041', data: dt(2, 10), imponibile: 15000, aliquota: 22, incassato: false, fileId: null, fileName: null },
+        spese: [
+          spesa('Cavi, canaline e frutti', 'materiale', 'Elettroforniture SRL', 3200, 22, dt(2, 12), true),
+          spesa('Avvitatore a batteria', 'utensile', 'Utensilteria SPA', 450, 22, dt(2, 5), false)
+        ],
+        foto: []
+      },
+      {
+        id: uid(), stato: 'attivo', categoriaId: catId(1),
+        nome: 'Impianto elettrico Villa Blu', cliente: 'Fam. Verdi', indirizzo: 'Via del Mare 3, Genova',
+        dataInizio: dt(5, 3), dataFine: '', note: '',
+        preventivo: null,
+        fatturaOrigine: { numero: y + '/052', data: dt(5, 15), imponibile: 9500, aliquota: 22, incassato: true, dataIncasso: dt(6, 1), fileId: null, fileName: null },
+        spese: [ spesa('Quadro elettrico e magnetotermici', 'materiale', 'Elettroforniture SRL', 2100, 22, dt(5, 10), true) ],
+        foto: []
+      },
+      {
+        id: uid(), stato: 'attivo', categoriaId: catId(2),
+        nome: 'Manutenzione Condominio Sole', cliente: 'Amm. Neri', indirizzo: 'Corso Italia 100, Torino',
+        dataInizio: dt(7, 1), dataFine: '', note: 'Manutenzione parti comuni.',
+        preventivo: null,
+        fatturaOrigine: { numero: y + '/060', data: dt(7, 3), imponibile: 3400, aliquota: 10, incassato: false, fileId: null, fileName: null },
+        spese: [ spesa('Materiale di consumo', 'materiale', 'Ferramenta Centrale', 600, 22, dt(7, 2), false) ],
+        foto: []
+      },
+      {
+        id: uid(), stato: 'completato', categoriaId: catId(3),
+        nome: 'Nuova costruzione Capannone', cliente: 'Logistica Rossi Srl', indirizzo: 'Z.I. Nord, Padova',
+        dataInizio: dt(1, 10), dataFine: dt(3, 20), note: 'Impianto industriale completato e collaudato.',
+        preventivo: null,
+        fatturaOrigine: { numero: y + '/018', data: dt(3, 15), imponibile: 42000, aliquota: 22, incassato: true, dataIncasso: dt(4, 10), fileId: null, fileName: null },
+        spese: [
+          spesa('Materiale industriale e quadri', 'materiale', 'Elettroforniture SRL', 12000, 22, dt(2, 20), true),
+          spesa('Trapano e tester professionali', 'utensile', 'Utensilteria SPA', 1500, 22, dt(1, 15), true)
+        ],
+        foto: []
+      }
+    ];
+
+    demo.forEach(c => state.cantieri.unshift(c));
+    persist();
+    closeModal();
+    route = { name: 'dashboard' };
+    dashboardFilter = 'tutte';
+    render();
+    toast('Dati di esempio caricati 🧪');
   }
 
   document.addEventListener('DOMContentLoaded', boot);
