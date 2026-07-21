@@ -30,6 +30,8 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Token del tema scuro, riusati sia dalla preferenza di sistema sia dal
+   toggle esplicito del visualizzatore (data-theme). */
 @media (prefers-color-scheme: dark) {
   :root {
     --primary: #5b8bff;
@@ -54,6 +56,51 @@
     --shadow: 0 1px 3px rgba(0, 0, 0, .4);
     --shadow-lg: 0 12px 32px rgba(0, 0, 0, .5);
   }
+}
+
+/* Il toggle del visualizzatore stampa data-theme sul root: deve vincere
+   sulla preferenza di sistema in entrambe le direzioni. */
+:root[data-theme="dark"] {
+  --primary: #5b8bff;
+  --primary-dark: #3b6ff0;
+  --primary-soft: #16244a;
+  --accent: #ffc23d;
+  --accent-dark: #e0a52a;
+  --ok: #4ade80;
+  --ok-soft: #10321f;
+  --warn: #fbbf24;
+  --warn-soft: #34260c;
+  --danger: #f87171;
+  --danger-soft: #3a1414;
+  --bg: #0b1020;
+  --surface: #131a2e;
+  --surface-2: #0f1526;
+  --border: #263149;
+  --text: #e9eefb;
+  --text-soft: #93a1bd;
+  --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .5);
+}
+:root[data-theme="light"] {
+  --primary: #1e5eff;
+  --primary-dark: #1546c4;
+  --primary-soft: #e8efff;
+  --accent: #ffb300;
+  --accent-dark: #e09e00;
+  --ok: #16a34a;
+  --ok-soft: #e6f6ec;
+  --warn: #d97706;
+  --warn-soft: #fdf1dd;
+  --danger: #dc2626;
+  --danger-soft: #fbe6e6;
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-soft: #64748b;
+  --shadow: 0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .06);
+  --shadow-lg: 0 10px 30px rgba(15, 23, 42, .12);
 }
 
 * { box-sizing: border-box; }

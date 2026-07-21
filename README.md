@@ -55,7 +55,10 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 ## Come si usa
 
 ### Aprirla
-- **Sul computer:** apri il file `index.html` con un doppio clic.
+- **Modo più semplice (un solo file):** apri **`gestionale.html`** con un doppio
+  clic. Contiene tutto (nessun server, nessuna dipendenza) e lo puoi copiare/
+  salvare ovunque, anche sul telefono.
+- **Versione a più file:** apri `index.html` (identica, ma con file separati).
 - **Sul telefono/tablet:** vedi "Installazione sul telefono" più sotto.
 
 ### Operazioni principali
@@ -112,13 +115,15 @@ backup contiene tutto e si ripristina con *Importa backup*.
 ## Struttura del progetto
 
 ```
-index.html              Pagina principale
+gestionale.html         Versione "tutto in un file" (build)
+index.html              Pagina principale (versione a più file)
 assets/styles.css       Stile (mobile-first, tema chiaro/scuro)
 assets/db.js            Salvataggio locale (IndexedDB) + backup/ripristino
 assets/app.js           Logica dell'app e calcolo IVA
 manifest.webmanifest    Configurazione "app installabile"
 sw.js                   Service worker (uso offline)
 icons/                  Icone dell'app
+build.mjs               Genera gestionale.html dai file sorgente
 ```
 
 Nessuna libreria esterna: **JavaScript, HTML e CSS puri**.

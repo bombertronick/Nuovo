@@ -2017,6 +2017,7 @@
     toast('Dati di esempio caricati 🧪');
   }
 
-  document.addEventListener('DOMContentLoaded', boot);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
   window.addEventListener('beforeunload', releaseUrls);
 })();
