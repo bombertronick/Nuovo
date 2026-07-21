@@ -507,6 +507,30 @@ main {
   color: var(--primary-dark); font-weight: 700; margin-top: 4px;
 }
 
+/* proiezione: effetto della spesa sull'IVA netta prevista */
+.iva-proj {
+  margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 10px 12px;
+}
+.iva-proj .proj-title {
+  font-size: .72rem; font-weight: 800; color: var(--text-soft);
+  text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px;
+}
+.iva-proj .proj-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: .86rem; padding: 4px 0; gap: 10px;
+}
+.iva-proj .proj-row span { color: var(--text); }
+.iva-proj .proj-row em { color: var(--text-soft); font-style: normal; font-size: .76rem; }
+.iva-proj .proj-row b { font-weight: 800; white-space: nowrap; }
+.iva-proj .proj-row .add { color: var(--ok); font-size: .72rem; font-weight: 800; }
+.iva-proj .proj-row.net {
+  border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 8px; font-size: .92rem;
+}
+.iva-proj .proj-row.net span { font-weight: 700; }
+.iva-proj .proj-row.net b.versare { color: var(--warn); }
+.iva-proj .proj-row.net b.credito { color: var(--ok); }
+
 /* Categorie manager */
 .cat-item {
   display: flex; align-items: center; gap: 10px; padding: 8px;
@@ -1517,6 +1541,12 @@ main {
       </div>
       <div class="field"><label>Data</label><input id="sp-data" type="date" value="${esc(s.data || todayISO())}"></div>
       <div class="iva-preview" id="sp-preview"><span>IVA scalata: —</span><span>Totale: —</span></div>
+      <div class="iva-proj" id="sp-proj">
+        <div class="proj-title">📊 Effetto sul totale IVA ${ownerId === 'generale' ? 'azienda' : 'del cantiere'}</div>
+        <div class="proj-row"><span>IVA a debito ${ownerId === 'generale' ? '(fatture)' : '(fattura)'}</span><b id="sp-deb">—</b></div>
+        <div class="proj-row"><span>IVA a credito <em>(con questa spesa)</em></span><b id="sp-cre">—</b></div>
+        <div class="proj-row net"><span>IVA netta prevista</span><b id="sp-net">—</b></div>
+      </div>
       <div class="field" style="margin-top:14px">
         <label>Allega documento di spesa (foto/PDF)</label>
         ${fileDrop('sp-file', s.fileName)}
@@ -1533,7 +1563,47 @@ main {
       document.querySelectorAll('#sp-seg button').forEach(x => x.classList.toggle('active', x === b));
     });
     wireIvaPreview('sp-imp', 'sp-aliq', 'sp-preview', 'IVA scalata');
+    wireSpesaProjection(ownerId, existing ? existing.id : null);
     wireFileDrop('sp-file');
+  }
+
+  // IVA a debito/credito del contesto (cantiere o azienda), esclusa la spesa in modifica
+  function baseIvaContesto(ownerId, escludiId) {
+    let debito = 0, credito = 0;
+    if (ownerId === 'generale') {
+      state.cantieri.forEach(c => {
+        if (c.fatturaOrigine) debito += ivaOf(c.fatturaOrigine.imponibile, c.fatturaOrigine.aliquota);
+        (c.spese || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+      });
+      (state.speseGenerali || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+    } else {
+      const c = state.cantieri.find(x => x.id === ownerId);
+      if (c) {
+        if (c.fatturaOrigine) debito = ivaOf(c.fatturaOrigine.imponibile, c.fatturaOrigine.aliquota);
+        (c.spese || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+      }
+    }
+    return { debito, credito };
+  }
+
+  // Proiezione live: mostra come questa spesa incide sull'IVA netta prevista
+  function wireSpesaProjection(ownerId, escludiId) {
+    const base = baseIvaContesto(ownerId, escludiId);
+    const upd = () => {
+      const imp = num(document.getElementById('sp-imp').value);
+      const aliq = num(document.getElementById('sp-aliq').value);
+      const thisIva = ivaOf(imp, aliq);
+      const creditoTot = base.credito + thisIva;
+      const netta = base.debito - creditoTot;
+      document.getElementById('sp-deb').textContent = euro(base.debito);
+      document.getElementById('sp-cre').innerHTML = euro(creditoTot) + (thisIva ? ` <span class="add">+${euro(thisIva)}</span>` : '');
+      const netEl = document.getElementById('sp-net');
+      netEl.textContent = euro(Math.abs(netta)) + (netta < 0 ? ' a credito' : ' da versare');
+      netEl.className = netta < 0 ? 'credito' : 'versare';
+    };
+    document.getElementById('sp-imp').addEventListener('input', upd);
+    document.getElementById('sp-aliq').addEventListener('change', upd);
+    upd();
   }
 
   async function saveSpesa(ownerId, id) {

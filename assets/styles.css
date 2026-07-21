@@ -495,6 +495,30 @@ main {
   color: var(--primary-dark); font-weight: 700; margin-top: 4px;
 }
 
+/* proiezione: effetto della spesa sull'IVA netta prevista */
+.iva-proj {
+  margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 10px 12px;
+}
+.iva-proj .proj-title {
+  font-size: .72rem; font-weight: 800; color: var(--text-soft);
+  text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px;
+}
+.iva-proj .proj-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: .86rem; padding: 4px 0; gap: 10px;
+}
+.iva-proj .proj-row span { color: var(--text); }
+.iva-proj .proj-row em { color: var(--text-soft); font-style: normal; font-size: .76rem; }
+.iva-proj .proj-row b { font-weight: 800; white-space: nowrap; }
+.iva-proj .proj-row .add { color: var(--ok); font-size: .72rem; font-weight: 800; }
+.iva-proj .proj-row.net {
+  border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 8px; font-size: .92rem;
+}
+.iva-proj .proj-row.net span { font-weight: 700; }
+.iva-proj .proj-row.net b.versare { color: var(--warn); }
+.iva-proj .proj-row.net b.credito { color: var(--ok); }
+
 /* Categorie manager */
 .cat-item {
   display: flex; align-items: center; gap: 10px; padding: 8px;

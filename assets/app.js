@@ -742,6 +742,12 @@
       </div>
       <div class="field"><label>Data</label><input id="sp-data" type="date" value="${esc(s.data || todayISO())}"></div>
       <div class="iva-preview" id="sp-preview"><span>IVA scalata: —</span><span>Totale: —</span></div>
+      <div class="iva-proj" id="sp-proj">
+        <div class="proj-title">📊 Effetto sul totale IVA ${ownerId === 'generale' ? 'azienda' : 'del cantiere'}</div>
+        <div class="proj-row"><span>IVA a debito ${ownerId === 'generale' ? '(fatture)' : '(fattura)'}</span><b id="sp-deb">—</b></div>
+        <div class="proj-row"><span>IVA a credito <em>(con questa spesa)</em></span><b id="sp-cre">—</b></div>
+        <div class="proj-row net"><span>IVA netta prevista</span><b id="sp-net">—</b></div>
+      </div>
       <div class="field" style="margin-top:14px">
         <label>Allega documento di spesa (foto/PDF)</label>
         ${fileDrop('sp-file', s.fileName)}
@@ -758,7 +764,47 @@
       document.querySelectorAll('#sp-seg button').forEach(x => x.classList.toggle('active', x === b));
     });
     wireIvaPreview('sp-imp', 'sp-aliq', 'sp-preview', 'IVA scalata');
+    wireSpesaProjection(ownerId, existing ? existing.id : null);
     wireFileDrop('sp-file');
+  }
+
+  // IVA a debito/credito del contesto (cantiere o azienda), esclusa la spesa in modifica
+  function baseIvaContesto(ownerId, escludiId) {
+    let debito = 0, credito = 0;
+    if (ownerId === 'generale') {
+      state.cantieri.forEach(c => {
+        if (c.fatturaOrigine) debito += ivaOf(c.fatturaOrigine.imponibile, c.fatturaOrigine.aliquota);
+        (c.spese || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+      });
+      (state.speseGenerali || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+    } else {
+      const c = state.cantieri.find(x => x.id === ownerId);
+      if (c) {
+        if (c.fatturaOrigine) debito = ivaOf(c.fatturaOrigine.imponibile, c.fatturaOrigine.aliquota);
+        (c.spese || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+      }
+    }
+    return { debito, credito };
+  }
+
+  // Proiezione live: mostra come questa spesa incide sull'IVA netta prevista
+  function wireSpesaProjection(ownerId, escludiId) {
+    const base = baseIvaContesto(ownerId, escludiId);
+    const upd = () => {
+      const imp = num(document.getElementById('sp-imp').value);
+      const aliq = num(document.getElementById('sp-aliq').value);
+      const thisIva = ivaOf(imp, aliq);
+      const creditoTot = base.credito + thisIva;
+      const netta = base.debito - creditoTot;
+      document.getElementById('sp-deb').textContent = euro(base.debito);
+      document.getElementById('sp-cre').innerHTML = euro(creditoTot) + (thisIva ? ` <span class="add">+${euro(thisIva)}</span>` : '');
+      const netEl = document.getElementById('sp-net');
+      netEl.textContent = euro(Math.abs(netta)) + (netta < 0 ? ' a credito' : ' da versare');
+      netEl.className = netta < 0 ? 'credito' : 'versare';
+    };
+    document.getElementById('sp-imp').addEventListener('input', upd);
+    document.getElementById('sp-aliq').addEventListener('change', upd);
+    upd();
   }
 
   async function saveSpesa(ownerId, id) {
