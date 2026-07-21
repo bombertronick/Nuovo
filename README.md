@@ -52,6 +52,9 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 - 💳 **Bonifici del cliente** — registra i bonifici ricevuti (con causale e
   contabile allegata). Ogni bonifico scala dall'imponibile **da incassare**;
   la **cassa materiali** (bonifici − spese) si aggiorna a ogni spesa aggiunta.
+- 🧭 **Interfaccia essenziale** — in home solo IVA netta, bonifici incassati e
+  IVA da accantonare + i cantieri per categoria; tutto il resto nel menu
+  laterale. Nel cantiere due tasti rapidi (materiali/utensili e bonifici).
 
 ---
 
@@ -73,9 +76,10 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
      scalata in automatico).
    - Vedi il **riepilogo IVA** del cantiere in alto.
    - **✅ Segna come completato** → il cantiere finisce in **Archivio**.
-4. **Categorie** → chip "⚙️ Categorie" nella schermata principale.
-5. **Impostazioni / Backup** → icona **⚙️** in alto a destra (nome impresa,
-   esporta/importa backup, totali).
+4. **Menu ☰** (in alto a destra): scadenzario, riepilogo IVA, statistiche,
+   spese generali, gestione categorie, impostazioni e backup.
+5. **Dentro un cantiere** trovi in cima 3 numeri chiave e due tasti rapidi
+   **🛠️ Materiali/utensili** e **💳 Bonifici**, più la scheda con fattura, preventivo e foto.
 
 ---
 

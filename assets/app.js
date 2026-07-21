@@ -145,19 +145,26 @@
 
   // Riepilogo globale: tutti i cantieri + spese generali
   function globalRiepilogo() {
-    let debito = 0, credito = 0, ricavo = 0, costi = 0;
+    let debito = 0, credito = 0, ricavo = 0, costi = 0, bonifici = 0;
     state.cantieri.forEach(c => {
       const r = cantiereRiepilogo(c);
       debito += r.ivaDebito; credito += r.ivaCredito;
       ricavo += r.ricavoImponibile; costi += r.costiImponibile;
+      bonifici += r.bonificiTotale;
     });
     (state.speseGenerali || []).forEach(s => {
       credito += ivaOf(s.imponibile, s.aliquota);
       costi += num(s.imponibile);
     });
+    const ivaNetta = debito - credito;
     return {
-      ivaDebito: debito, ivaCredito: credito, ivaNetta: debito - credito,
-      ricavoImponibile: ricavo, costiImponibile: costi, margine: ricavo - costi
+      ivaDebito: debito, ivaCredito: credito, ivaNetta,
+      ricavoImponibile: ricavo, costiImponibile: costi, margine: ricavo - costi,
+      bonificiTotale: bonifici,
+      // IVA (netta da versare) da accantonare sui bonifici già riscossi
+      ivaDaAccantonare: Math.max(0, ivaNetta),
+      // bonifici al netto dell'IVA da versare = quanto resta davvero disponibile
+      bonificiNettoIva: bonifici - Math.max(0, ivaNetta)
     };
   }
 
@@ -199,6 +206,7 @@
     else if (route.name === 'scadenzario') renderScadenzario();
     else if (route.name === 'riepilogo') renderRiepilogoPeriodo();
     else if (route.name === 'statistiche') renderStatistiche();
+    else if (route.name === 'spesegenerali') renderSpeseGenerali();
     else renderDashboard();
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
@@ -231,26 +239,35 @@
     if (groups['nessuna']) orderedKeys.push('nessuna');
 
     let html = '';
-
-    // --- Riepilogo IVA azienda ---
     html += `<section class="view">`;
-    html += `<div class="section-title">📊 Riepilogo IVA azienda</div>`;
-    html += summaryGrid(g, true);
-    html += scadenzeBanner();
 
-    // --- Spese generali (non legate a un cantiere) ---
-    const speseGen = state.speseGenerali || [];
-    html += `<div class="section-title">🧾 Fatture e spese generali <span class="count">${speseGen.length}</span></div>`;
-    html += `<div class="card">`;
-    html += `<p class="mini-note">Spese di materiali/utensili non collegate a un cantiere specifico. L'IVA viene scalata dal totale azienda.</p>`;
-    if (speseGen.length) {
-      html += `<div style="margin-top:12px">` + speseGen.map(s => expenseRow(s, 'generale')).join('') + `</div>`;
+    // --- Sintesi azienda (leggera): IVA netta · bonifici · IVA da accantonare ---
+    const nettaFavore = g.ivaNetta < 0;
+    html += `<div class="top-summary">
+      <div class="ts-tile net ${nettaFavore ? 'ok' : ''}">
+        <div class="ts-label">IVA netta</div>
+        <div class="ts-value">${euro(Math.abs(g.ivaNetta))}</div>
+        <div class="ts-sub">${nettaFavore ? 'a tuo credito' : 'da versare'}</div>
+      </div>
+      <div class="ts-tile bon">
+        <div class="ts-label">Bonifici incassati</div>
+        <div class="ts-value">${euro(g.bonificiTotale)}</div>
+        <div class="ts-sub">da tutti i clienti</div>
+      </div>
+      <div class="ts-tile acc">
+        <div class="ts-label">IVA da accantonare</div>
+        <div class="ts-value">${euro(g.ivaDaAccantonare)}</div>
+        <div class="ts-sub">dai bonifici riscossi</div>
+      </div>
+    </div>`;
+    if (g.bonificiTotale > 0) {
+      html += g.bonificiNettoIva >= 0
+        ? `<p class="mini-note" style="text-align:center;margin:8px 4px 0">Sui bonifici riscossi accantona ${euro(g.ivaDaAccantonare)} per l'IVA → restano <b>${euro(g.bonificiNettoIva)}</b> disponibili.</p>`
+        : `<p class="mini-note" style="text-align:center;margin:8px 4px 0">L'IVA da versare (${euro(g.ivaDaAccantonare)}) supera i bonifici riscossi (${euro(g.bonificiTotale)}): accantonali tutti.</p>`;
     }
-    html += `<button class="btn btn-ghost btn-block" data-action="add-spesa-generale" style="margin-top:12px">➕ Aggiungi spesa generale</button>`;
-    html += `</div>`;
 
     // --- Categorie / filtro ---
-    html += `<div class="section-title">🏗️ Cantieri attivi <span class="count">${attivi.length}</span></div>`;
+    html += `<div class="section-title" style="margin-top:20px">🏗️ Cantieri attivi <span class="count">${attivi.length}</span></div>`;
     html += `<div class="chips">`;
     html += chip('tutte', 'Tutte', null, dashboardFilter === 'tutte');
     state.categorie.forEach(c => {
@@ -259,7 +276,6 @@
     });
     const senza = attivi.filter(x => !x.categoriaId).length;
     if (senza) html += chip('nessuna', `Senza categoria · ${senza}`, '#94a3b8', dashboardFilter === 'nessuna');
-    html += `<button class="chip manage" data-action="manage-categorie">⚙️ Categorie</button>`;
     html += `</div>`;
 
     // --- Lista cantieri raggruppati ---
@@ -280,16 +296,8 @@
     }
 
     // --- Archivio completati ---
-    html += `<div class="section-title" style="margin-top:26px">✅ Cantieri completati <span class="count">${completati.length}</span></div>`;
+    html += `<div class="section-title" style="margin-top:24px">✅ Cantieri completati <span class="count">${completati.length}</span></div>`;
     html += `<button class="btn btn-ghost btn-block" data-action="open-archivio">📁 Apri archivio completati (${completati.length})</button>`;
-
-    // --- Strumenti ---
-    html += `<div class="section-title" style="margin-top:22px">🧰 Strumenti</div>`;
-    html += `<div class="tools-grid tools-3">
-      <button class="tool-btn" data-action="open-scadenzario"><span class="ti">💰</span><span>Scadenzario<br>pagamenti</span></button>
-      <button class="tool-btn" data-action="open-riepilogo"><span class="ti">📅</span><span>Riepilogo<br>IVA</span></button>
-      <button class="tool-btn" data-action="open-statistiche"><span class="ti">📈</span><span>Statistiche<br>azienda</span></button>
-    </div>`;
 
     html += `</section>`;
     app().innerHTML = html;
@@ -351,6 +359,8 @@
   }
 
   /* ----------------------------- DETTAGLIO CANTIERE ------------------------- */
+  let cantiereTab = 'materiali'; // 'materiali' | 'bonifici' | 'scheda'
+
   function renderCantiere(id) {
     const c = state.cantieri.find(x => x.id === id);
     if (!c) { route = { name: 'dashboard' }; return renderDashboard(); }
@@ -371,11 +381,60 @@
       <button class="icon-btn" style="background:var(--surface);border:1px solid var(--border);color:var(--text)" data-action="edit-cantiere" data-id="${c.id}">✏️</button>
     </div>`;
 
-    // Riepilogo IVA cantiere
+    // Mini sintesi sempre visibile
+    const cassaFav = r.cassaMateriali >= 0;
+    html += `<div class="mini-stats">
+      <div class="ms"><div class="ms-l">IVA netta</div><div class="ms-v" style="color:${r.ivaNetta < 0 ? 'var(--ok)' : 'var(--warn)'}">${euro(Math.abs(r.ivaNetta))}</div></div>
+      <div class="ms"><div class="ms-l">Da incassare</div><div class="ms-v" style="color:var(--primary)">${c.fatturaOrigine ? euro(r.daIncassareImponibile) : '—'}</div></div>
+      <div class="ms"><div class="ms-l">Cassa materiali</div><div class="ms-v" style="color:${cassaFav ? 'var(--ok)' : 'var(--warn)'}">${euro(Math.abs(r.cassaMateriali))}</div></div>
+    </div>`;
+
+    // Tab rapidi
+    const nSpese = (c.spese || []).length;
+    const nBon = (c.bonifici || []).length;
+    html += `<div class="ctabs">
+      <button class="ctab ${cantiereTab === 'materiali' ? 'active' : ''}" data-action="cant-tab" data-tab="materiali"><span class="ct-ic">🛠️</span><span>Materiali<br>e utensili</span>${nSpese ? `<span class="ct-n">${nSpese}</span>` : ''}</button>
+      <button class="ctab ${cantiereTab === 'bonifici' ? 'active' : ''}" data-action="cant-tab" data-tab="bonifici"><span class="ct-ic">💳</span><span>Bonifici<br>cliente</span>${nBon ? `<span class="ct-n">${nBon}</span>` : ''}</button>
+      <button class="ctab ${cantiereTab === 'scheda' ? 'active' : ''}" data-action="cant-tab" data-tab="scheda"><span class="ct-ic">📋</span><span>Scheda<br>e fattura</span></button>
+    </div>`;
+
+    html += `<div class="ctab-content">`;
+    if (cantiereTab === 'bonifici') html += bonificiSection(c, r);
+    else if (cantiereTab === 'scheda') html += schedaSection(c, r, completato);
+    else html += speseSection(c);
+    html += `</div>`;
+
+    html += `</section>`;
+    app().innerHTML = html;
+    caricaAllegatiVisibili();
+    document.getElementById('fab').classList.add('hidden');
+  }
+
+  // Tab "Materiali e utensili"
+  function speseSection(c) {
+    const spese = c.spese || [];
+    let html = `<div class="section-title">🛠️ Spese materiali e utensili <span class="count">${spese.length}</span></div>`;
+    html += `<div class="card">`;
+    html += `<p class="mini-note">Ogni spesa scala la sua IVA dalla fattura d'origine (IVA a credito) e riduce la cassa materiali.</p>`;
+    if (spese.length) {
+      html += `<div style="margin-top:12px">` + spese.map(s => expenseRow(s, c.id)).join('') + `</div>`;
+      const totSpese = spese.reduce((a, s) => a + totaleOf(s.imponibile, s.aliquota), 0);
+      const totIva = spese.reduce((a, s) => a + ivaOf(s.imponibile, s.aliquota), 0);
+      html += `<div class="iva-preview"><span>Totale spese: ${euro(totSpese)}</span><span>IVA scalata: ${euro(totIva)}</span></div>`;
+    } else {
+      html += emptyState('🛠️', 'Nessuna spesa', 'Aggiungi i materiali e gli utensili acquistati per questo cantiere.');
+    }
+    html += `<button class="btn btn-accent btn-block" style="margin-top:12px" data-action="add-spesa" data-id="${c.id}">➕ Aggiungi spesa (materiale/utensile)</button>`;
+    html += `</div>`;
+    return html;
+  }
+
+  // Tab "Scheda e fattura": info, preventivo, fattura, foto, riepilogo, azioni
+  function schedaSection(c, r, completato) {
+    let html = '';
     html += `<div class="section-title">📊 Riepilogo IVA cantiere</div>`;
     html += summaryGrid(r, true);
 
-    // Info cantiere
     html += `<div class="section-title">ℹ️ Informazioni</div>`;
     html += `<div class="card">`;
     html += infoRow('Cliente', c.cliente || '—');
@@ -386,10 +445,8 @@
     if (c.note) html += infoRow('Note', esc(c.note));
     html += `</div>`;
 
-    // Preventivo
     html += preventivoSection(c);
 
-    // Fattura d'origine
     html += `<div class="section-title">🧾 Fattura d'origine (al cliente)</div>`;
     html += `<div class="card">`;
     if (c.fatturaOrigine) {
@@ -420,27 +477,8 @@
     }
     html += `</div>`;
 
-    // Bonifici del cliente + conto cliente
-    html += bonificiSection(c, r);
-
-    // Spese materiali / utensili
-    const spese = c.spese || [];
-    html += `<div class="section-title">🛠️ Spese materiali e utensili <span class="count">${spese.length}</span></div>`;
-    html += `<div class="card">`;
-    html += `<p class="mini-note">Ogni spesa scala la sua IVA dalla fattura d'origine (IVA a credito).</p>`;
-    if (spese.length) {
-      html += `<div style="margin-top:12px">` + spese.map(s => expenseRow(s, c.id)).join('') + `</div>`;
-      const totSpese = spese.reduce((a, s) => a + totaleOf(s.imponibile, s.aliquota), 0);
-      const totIva = spese.reduce((a, s) => a + ivaOf(s.imponibile, s.aliquota), 0);
-      html += `<div class="iva-preview"><span>Totale spese: ${euro(totSpese)}</span><span>IVA scalata: ${euro(totIva)}</span></div>`;
-    }
-    html += `<button class="btn btn-accent btn-block" style="margin-top:12px" data-action="add-spesa" data-id="${c.id}">➕ Aggiungi spesa (materiale/utensile)</button>`;
-    html += `</div>`;
-
-    // Galleria foto
     html += fotoSection(c);
 
-    // Azioni cantiere
     html += `<hr class="divider">`;
     html += `<div class="row-actions">
       <button class="btn btn-ghost btn-block" data-action="stampa-cantiere" data-id="${c.id}">🖨️ Stampa scheda / salva PDF</button>
@@ -455,11 +493,7 @@
     html += `<div class="row-actions">
       <button class="btn btn-danger btn-block" data-action="del-cantiere" data-id="${c.id}">🗑️ Elimina cantiere</button>
     </div>`;
-
-    html += `</section>`;
-    app().innerHTML = html;
-    caricaAllegatiVisibili();
-    document.getElementById('fab').classList.add('hidden');
+    return html;
   }
 
   function infoRow(k, v) {
@@ -1127,7 +1161,11 @@
       case 'manage-categorie': categorieManager(); break;
       case 'add-categoria': addCategoria(); break;
       case 'save-categorie': saveCategorie(); break;
-      case 'open-cantiere': releaseUrls(); route = { name: 'cantiere', id }; render(); break;
+      case 'open-cantiere': releaseUrls(); cantiereTab = 'materiali'; route = { name: 'cantiere', id }; render(); break;
+      case 'cant-tab': cantiereTab = t.dataset.tab; render(); break;
+      case 'open-drawer': openDrawer(); break;
+      case 'close-drawer': closeDrawer(); break;
+      case 'drawer-nav': drawerNav(t.dataset.go); break;
       case 'open-archivio': route = { name: 'archivio' }; render(); break;
       case 'back': releaseUrls(); route = { name: 'dashboard' }; render(); break;
       case 'edit-cantiere': cantiereForm(state.cantieri.find(x => x.id === id)); break;
@@ -2221,6 +2259,72 @@
     if (c.bonifici[idx].fileId) await DB.deleteFile(c.bonifici[idx].fileId);
     c.bonifici.splice(idx, 1);
     persist(); render(); toast('Bonifico eliminato');
+  }
+
+  /* ===================== Tendina laterale (menu) ========================== */
+  function openDrawer() {
+    closeDrawer();
+    const speseGenN = (state.speseGenerali || []).length;
+    const scad = scadenzeTotali();
+    const back = document.createElement('div');
+    back.className = 'drawer-backdrop';
+    back.id = 'drawer-backdrop';
+    back.innerHTML = `<nav class="drawer" role="dialog" aria-label="Menu">
+      <div class="drawer-head">
+        <div class="dh-logo">⚡</div>
+        <div style="flex:1 1 auto;min-width:0"><div class="dh-name">${esc(state.azienda || 'La mia impresa')}</div><div class="dh-role">Menu e strumenti</div></div>
+        <button class="drawer-close" data-action="close-drawer" aria-label="Chiudi">✕</button>
+      </div>
+      <div class="drawer-items">
+        <button class="drawer-item" data-action="drawer-nav" data-go="scadenzario"><span class="di-ic">💰</span><span class="di-tx">Scadenzario pagamenti</span>${(scad.daIncassare || scad.daPagare) ? `<span class="di-dot"></span>` : ''}</button>
+        <button class="drawer-item" data-action="drawer-nav" data-go="riepilogo"><span class="di-ic">📅</span><span class="di-tx">Riepilogo IVA (trimestri)</span></button>
+        <button class="drawer-item" data-action="drawer-nav" data-go="statistiche"><span class="di-ic">📈</span><span class="di-tx">Statistiche azienda</span></button>
+        <button class="drawer-item" data-action="drawer-nav" data-go="spesegenerali"><span class="di-ic">🧾</span><span class="di-tx">Spese generali</span>${speseGenN ? `<span class="di-count">${speseGenN}</span>` : ''}</button>
+        <div class="drawer-sep"></div>
+        <button class="drawer-item" data-action="drawer-nav" data-go="categorie"><span class="di-ic">🏷️</span><span class="di-tx">Gestione categorie</span></button>
+        <button class="drawer-item" data-action="drawer-nav" data-go="settings"><span class="di-ic">⚙️</span><span class="di-tx">Impostazioni e backup</span></button>
+      </div>
+      <div class="drawer-foot">⚡ Gestionale Cantieri</div>
+    </nav>`;
+    back.addEventListener('click', e => { if (e.target === back) closeDrawer(); });
+    document.body.appendChild(back);
+    requestAnimationFrame(() => back.classList.add('open'));
+  }
+  function closeDrawer() {
+    const b = document.getElementById('drawer-backdrop');
+    if (b) b.remove();
+  }
+  function drawerNav(go) {
+    closeDrawer();
+    if (go === 'categorie') return categorieManager();
+    if (go === 'settings') return settingsModal();
+    releaseUrls();
+    route = { name: go };
+    render();
+  }
+
+  /* ------------------------------ Spese generali -------------------------- */
+  function renderSpeseGenerali() {
+    const speseGen = state.speseGenerali || [];
+    const totIva = speseGen.reduce((a, s) => a + ivaOf(s.imponibile, s.aliquota), 0);
+    let html = `<section class="view">`;
+    html += `<div class="detail-header">
+      <button class="back-btn" data-action="back">←</button>
+      <div style="flex:1 1 auto"><h2>🧾 Spese generali</h2><div class="dh-sub">Non collegate a un cantiere</div></div>
+    </div>`;
+    html += `<div class="card">`;
+    html += `<p class="mini-note">Spese di materiali/utensili non legate a un cantiere specifico. La loro IVA viene scalata dal totale IVA dell'azienda.</p>`;
+    if (speseGen.length) {
+      html += `<div style="margin-top:12px">` + speseGen.map(s => expenseRow(s, 'generale')).join('') + `</div>`;
+      html += `<div class="iva-preview"><span>Spese: ${speseGen.length}</span><span>IVA scalata: ${euro(totIva)}</span></div>`;
+    } else {
+      html += emptyState('🧾', 'Nessuna spesa generale', 'Aggiungi qui le spese non collegate a un cantiere.');
+    }
+    html += `<button class="btn btn-accent btn-block" style="margin-top:12px" data-action="add-spesa-generale">➕ Aggiungi spesa generale</button>`;
+    html += `</div></section>`;
+    app().innerHTML = html;
+    caricaAllegatiVisibili();
+    document.getElementById('fab').classList.add('hidden');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
