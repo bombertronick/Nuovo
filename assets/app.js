@@ -163,8 +163,8 @@
       bonificiTotale: bonifici,
       // IVA (netta da versare) da accantonare sui bonifici già riscossi
       ivaDaAccantonare: Math.max(0, ivaNetta),
-      // bonifici al netto dell'IVA da versare = quanto resta davvero disponibile
-      bonificiNettoIva: bonifici - Math.max(0, ivaNetta)
+      // quanto resta dei bonifici dopo aver accantonato l'IVA (mai negativo)
+      bonificiDisponibile: Math.max(0, bonifici - Math.max(0, ivaNetta))
     };
   }
 
@@ -207,6 +207,7 @@
     else if (route.name === 'riepilogo') renderRiepilogoPeriodo();
     else if (route.name === 'statistiche') renderStatistiche();
     else if (route.name === 'spesegenerali') renderSpeseGenerali();
+    else if (route.name === 'incassi') renderIncassi();
     else renderDashboard();
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
@@ -241,7 +242,7 @@
     let html = '';
     html += `<section class="view">`;
 
-    // --- Sintesi azienda (leggera): IVA netta · bonifici · IVA da accantonare ---
+    // --- Sintesi azienda: 3 numeri distinti (nessun dato ripetuto) ---
     const nettaFavore = g.ivaNetta < 0;
     html += `<div class="top-summary">
       <div class="ts-tile net ${nettaFavore ? 'ok' : ''}">
@@ -249,22 +250,17 @@
         <div class="ts-value">${euro(Math.abs(g.ivaNetta))}</div>
         <div class="ts-sub">${nettaFavore ? 'a tuo credito' : 'da versare'}</div>
       </div>
-      <div class="ts-tile bon">
-        <div class="ts-label">Bonifici incassati</div>
+      <button class="ts-tile bon clickable" data-action="open-incassi">
+        <div class="ts-label">Bonifici incassati ›</div>
         <div class="ts-value">${euro(g.bonificiTotale)}</div>
-        <div class="ts-sub">da tutti i clienti</div>
-      </div>
-      <div class="ts-tile acc">
-        <div class="ts-label">IVA da accantonare</div>
-        <div class="ts-value">${euro(g.ivaDaAccantonare)}</div>
-        <div class="ts-sub">dai bonifici riscossi</div>
+        <div class="ts-sub">tocca per dettaglio</div>
+      </button>
+      <div class="ts-tile disp">
+        <div class="ts-label">Disponibile</div>
+        <div class="ts-value">${euro(g.bonificiDisponibile)}</div>
+        <div class="ts-sub">dai bonifici, dopo l'IVA</div>
       </div>
     </div>`;
-    if (g.bonificiTotale > 0) {
-      html += g.bonificiNettoIva >= 0
-        ? `<p class="mini-note" style="text-align:center;margin:8px 4px 0">Sui bonifici riscossi accantona ${euro(g.ivaDaAccantonare)} per l'IVA → restano <b>${euro(g.bonificiNettoIva)}</b> disponibili.</p>`
-        : `<p class="mini-note" style="text-align:center;margin:8px 4px 0">L'IVA da versare (${euro(g.ivaDaAccantonare)}) supera i bonifici riscossi (${euro(g.bonificiTotale)}): accantonali tutti.</p>`;
-    }
 
     // --- Categorie / filtro ---
     html += `<div class="section-title" style="margin-top:20px">🏗️ Cantieri attivi <span class="count">${attivi.length}</span></div>`;
@@ -1166,6 +1162,8 @@
       case 'open-drawer': openDrawer(); break;
       case 'close-drawer': closeDrawer(); break;
       case 'drawer-nav': drawerNav(t.dataset.go); break;
+      case 'open-incassi': releaseUrls(); route = { name: 'incassi' }; render(); break;
+      case 'incassi-group': incassiGroupBy = t.dataset.by; render(); break;
       case 'open-archivio': route = { name: 'archivio' }; render(); break;
       case 'back': releaseUrls(); route = { name: 'dashboard' }; render(); break;
       case 'edit-cantiere': cantiereForm(state.cantieri.find(x => x.id === id)); break;
@@ -2102,11 +2100,12 @@
       },
       {
         id: uid(), stato: 'attivo', categoriaId: catId(1),
-        nome: 'Impianto elettrico Villa Blu', cliente: 'Fam. Verdi', indirizzo: 'Via del Mare 3, Genova',
-        dataInizio: dt(5, 3), dataFine: '', note: '',
+        nome: 'Impianto elettrico Villa Blu', cliente: 'Sig. Bianchi', indirizzo: 'Via del Mare 3, Genova',
+        dataInizio: dt(5, 3), dataFine: '', note: 'Secondo cantiere dello stesso cliente.',
         preventivo: null,
         fatturaOrigine: { numero: y + '/052', data: dt(5, 15), imponibile: 9500, aliquota: 22, incassato: true, dataIncasso: dt(6, 1), fileId: null, fileName: null },
         spese: [ spesa('Quadro elettrico e magnetotermici', 'materiale', 'Elettroforniture SRL', 2100, 22, dt(5, 10), true) ],
+        bonifici: [ bonif(4000, dt(5, 20), 'Acconto Villa Blu') ],
         foto: []
       },
       {
@@ -2324,6 +2323,83 @@
     html += `</div></section>`;
     app().innerHTML = html;
     caricaAllegatiVisibili();
+    document.getElementById('fab').classList.add('hidden');
+  }
+
+  /* ===================== Incassi / Bonifici (per cliente/cantiere) ======== */
+  let incassiGroupBy = 'cliente'; // 'cliente' | 'cantiere'
+
+  function clienteKey(c) { return (c.cliente || '').trim() || '(cliente non indicato)'; }
+
+  function renderIncassi() {
+    // raccogli tutti i bonifici con riferimento a cantiere e cliente
+    const items = [];
+    state.cantieri.forEach(c => {
+      (c.bonifici || []).forEach(bn => {
+        items.push({ importo: num(bn.importo), data: bn.data, causale: bn.causale, cantId: c.id, cantiere: c.nome, cliente: clienteKey(c) });
+      });
+    });
+    const totale = items.reduce((a, i) => a + i.importo, 0);
+    const byCliente = incassiGroupBy === 'cliente';
+
+    let html = `<section class="view">`;
+    html += `<div class="detail-header">
+      <button class="back-btn" data-action="back">←</button>
+      <div style="flex:1 1 auto"><h2>💳 Incassi / Bonifici</h2><div class="dh-sub">Totale ${euro(totale)} · ${items.length} bonifici</div></div>
+    </div>`;
+
+    html += `<div class="seg" style="margin-bottom:14px">
+      <button data-action="incassi-group" data-by="cliente" class="${byCliente ? 'active' : ''}">👤 Per cliente</button>
+      <button data-action="incassi-group" data-by="cantiere" class="${!byCliente ? 'active' : ''}">🏗️ Per cantiere</button>
+    </div>`;
+
+    if (!items.length) {
+      html += emptyState('💳', 'Nessun bonifico registrato', 'Aggiungi i bonifici dei clienti dalla scheda di ogni cantiere.');
+      html += `</section>`;
+      app().innerHTML = html;
+      document.getElementById('fab').classList.add('hidden');
+      return;
+    }
+
+    // raggruppa per cliente o per cantiere
+    const groups = {};
+    items.forEach(i => {
+      const k = byCliente ? i.cliente : i.cantiere;
+      if (!groups[k]) groups[k] = { totale: 0, list: [], cantIds: new Set(), cliente: i.cliente, cantId: i.cantId };
+      groups[k].list.push(i);
+      groups[k].totale += i.importo;
+      groups[k].cantIds.add(i.cantId);
+    });
+    const keys = Object.keys(groups).sort((a, b) => groups[b].totale - groups[a].totale);
+
+    keys.forEach(k => {
+      const g = groups[k];
+      const sub = byCliente
+        ? `${g.cantIds.size} ${g.cantIds.size > 1 ? 'cantieri' : 'cantiere'}`
+        : esc(g.cliente);
+      html += `<div class="section-title incassi-head"><span>${byCliente ? '👤' : '🏗️'} ${esc(k)}</span><span class="grp-tot">${euro(g.totale)}</span></div>`;
+      html += `<div class="card">`;
+      html += `<p class="mini-note" style="margin-top:0">${sub}</p>`;
+      html += `<div style="margin-top:8px">`;
+      g.list.sort((a, b) => (b.data || '').localeCompare(a.data || '')).forEach(i => {
+        const title = byCliente ? i.cantiere : (i.causale || 'Bonifico');
+        const subline = byCliente
+          ? [i.causale, fmtDate(i.data)].filter(Boolean).join(' · ')
+          : fmtDate(i.data);
+        html += `<div class="expense-row" data-action="open-cantiere" data-id="${i.cantId}" style="cursor:pointer">
+          <div class="ex-icon">💳</div>
+          <div class="ex-body">
+            <div class="ex-title">${esc(title)}</div>
+            <div class="ex-sub">${esc(subline || '—')}</div>
+          </div>
+          <div class="ex-amount"><div class="tot">${euro(i.importo)}</div></div>
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+
+    html += `</section>`;
+    app().innerHTML = html;
     document.getElementById('fab').classList.add('hidden');
   }
 

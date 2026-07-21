@@ -52,9 +52,13 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 - 💳 **Bonifici del cliente** — registra i bonifici ricevuti (con causale e
   contabile allegata). Ogni bonifico scala dall'imponibile **da incassare**;
   la **cassa materiali** (bonifici − spese) si aggiorna a ogni spesa aggiunta.
-- 🧭 **Interfaccia essenziale** — in home solo IVA netta, bonifici incassati e
-  IVA da accantonare + i cantieri per categoria; tutto il resto nel menu
-  laterale. Nel cantiere due tasti rapidi (materiali/utensili e bonifici).
+- 🧭 **Interfaccia essenziale** — in home tre numeri distinti (IVA netta,
+  bonifici incassati, disponibile dopo l'IVA) + i cantieri per categoria;
+  tutto il resto nel menu laterale. Nel cantiere due tasti rapidi
+  (materiali/utensili e bonifici).
+- 🧾 **Dettaglio incassi** — tocca "Bonifici incassati" in home per vedere tutti
+  i bonifici raggruppati **per cliente** (un cliente può avere più cantieri) o
+  **per cantiere**, con totali; tocca un bonifico per aprire il cantiere.
 
 ---
 

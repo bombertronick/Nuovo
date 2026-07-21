@@ -550,7 +550,21 @@ main {
 .ts-tile.net .ts-value { color: var(--warn); }
 .ts-tile.net.ok .ts-value { color: var(--ok); }
 .ts-tile.bon .ts-value { color: var(--primary); }
-.ts-tile.acc .ts-value { color: var(--text); }
+.ts-tile.disp .ts-value { color: var(--ok); }
+.ts-tile.clickable {
+  cursor: pointer; font-family: inherit; -webkit-appearance: none; appearance: none;
+  transition: transform .1s, box-shadow .12s, border-color .12s;
+}
+.ts-tile.clickable:hover { box-shadow: var(--shadow-lg); border-color: var(--primary); }
+.ts-tile.clickable:active { transform: scale(.98); }
+.ts-tile.bon .ts-label { color: var(--primary); }
+
+/* intestazioni raggruppamento incassi */
+.section-title.incassi-head {
+  justify-content: space-between; text-transform: none; letter-spacing: 0;
+  font-size: .92rem; color: var(--text);
+}
+.section-title.incassi-head .grp-tot { color: var(--primary); font-weight: 800; font-variant-numeric: tabular-nums; }
 
 /* Mini sintesi in cima al cantiere */
 .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
