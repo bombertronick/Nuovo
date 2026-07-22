@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+  <meta name="theme-color" content="#1e5eff">
+  <meta name="description" content="Gestionale cantieri per impresa di ristrutturazioni ed elettricista: cantieri per categorie, archivio completati, fatture e scarico IVA su materiali e utensili.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cantieri">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="assets/styles.css">
+  <title>Gestionale Cantieri</title>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div style="min-width:0">
+        <h1>Gestionale Cantieri</h1>
+        <p class="sub" id="header-sub">Caricamento…</p>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" data-action="open-drawer" title="Menu e strumenti" aria-label="Menu">☰</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app">
+    <div class="empty"><div class="big">⚡</div><p>Caricamento in corso…</p></div>
+  </main>
+
+  <button class="fab" id="fab" title="Nuovo cantiere" aria-label="Nuovo cantiere">＋</button>
+
+  <script src="assets/db.js"></script>
+  <script src="assets/app.js"></script>
+  <script>
+    // Service worker per uso offline (attivo solo se l'app è servita via http/https).
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

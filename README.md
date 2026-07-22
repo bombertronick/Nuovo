@@ -1,0 +1,152 @@
+# ⚡ Gestionale Cantieri
+
+App gestionale pensata per un **elettricista / impresa di ristrutturazioni**.
+Permette di organizzare tutti i cantieri per categorie, archiviare quelli
+completati con la relativa fattura, e tenere sotto controllo lo **scarico
+dell'IVA** su materiali e utensili.
+
+L'app è **completamente autonoma**: nessun server, nessun account, nessun
+abbonamento. Tutti i dati restano **sul tuo dispositivo**.
+
+**🌐 App online:** https://bombertronick.github.io/Nuovo/ — apri dal telefono e *Aggiungi a Home*.
+
+---
+
+## Cosa fa
+
+- 🏗️ **Cantieri organizzati per categorie** — categorie sempre modificabili
+  (crea, rinomina, cambia colore, elimina) dalla schermata principale.
+- ✅ **Archivio cantieri completati** — con tutte le informazioni e la fattura
+  allegata; un cantiere si può riaprire in qualsiasi momento.
+- 🧾 **Fattura d'origine + spese** — per ogni cantiere alleghi la fattura emessa
+  al cliente e tutte le spese di **materiali** e **utensili**.
+- 💶 **Scarico IVA automatico** — l'app calcola:
+  - **IVA a debito** = IVA della fattura d'origine (incassata dal cliente)
+  - **IVA a credito** = somma dell'IVA delle spese di materiali/utensili
+  - **IVA netta** = debito − credito → quanto devi **versare** (o quanto hai a
+    **credito**)
+  - **Margine** = ricavi − costi (imponibile)
+
+  Il calcolo è mostrato **sia nella schermata principale** (totale dell'intera
+  azienda) **sia dentro ogni cantiere**.
+- 📷 **Allegati** — foto della fattura scattata al momento o file PDF.
+- 💾 **Backup e ripristino** — esporta tutti i dati (compresi gli allegati) in un
+  unico file, per non perderli o spostarli su un altro dispositivo.
+- 📱 **Funziona offline** e si può "aggiungere alla schermata Home" come un'app.
+
+- 📅 **Riepilogo IVA per trimestre e anno** — liquidazione IVA (debito/credito/netta)
+  suddivisa per i 4 trimestri, con totale annuo. Utile per il commercialista.
+- 📄 **Esportazione** — stampa/PDF della scheda cantiere e del riepilogo, più
+  esportazione **CSV** (apribile in Excel) di riepilogo IVA e movimenti.
+- 💰 **Scadenzario pagamenti** — fatture **da incassare** e spese **da pagare**,
+  con un tocco per segnarle saldate; totali sempre in vista.
+- 📝 **Preventivi** — crea un preventivo con voci di lavoro e, quando il cliente
+  accetta, **convertilo in fattura d'origine** con un tocco.
+- 🖼️ **Galleria foto per cantiere** — documenta i lavori (prima/durante/dopo).
+- 📈 **Statistiche azienda** — fatturato per categoria, ripartizione costi
+  (materiali/utensili), margine medio e **report annuale/complessivo in PDF**.
+- 🔢 **Numerazione automatica** — numero di fattura e preventivo proposto in
+  automatico (progressivo per anno), sempre modificabile.
+- 🏢 **Dati e logo impresa nei PDF** — logo, P.IVA, indirizzo e contatti
+  compaiono in cima a scheda cantiere e report.
+- 🧮 **Ritenuta d'acconto** — campo opzionale sulla fattura (es. 4% ritenuta
+  condominiale); l'app calcola il **netto a incassare** e lo usa nello scadenzario.
+- 🧑‍🔧 **Collaboratori** — blocco gemello di *Materiali*: registri le fatture dei
+  collaboratori/subappalti (IVA scalata a credito, imponibile sottratto dal
+  margine come i materiali), con stato pagata/da pagare e allegato.
+- 🧾 **IVA 0%** — sulle fatture in uscita (materiali e collaboratori) puoi
+  impostare esplicitamente l'aliquota **0%** (forfettari, reverse charge);
+  lo 0 è un valore valido e il totale resta pari all'imponibile.
+- 🔒 **Cassa materiali separata** — la *cassa materiali* (bonifici − materiali)
+  è un conto a sé: **non** entra nel *margine* né nei *soldi da riscuotere*.
+- 💳 **Bonifici del cliente (Acconto / Extra)** — ogni bonifico si segna come
+  **Acconto** (parte del prezzo concordato: scala il *da incassare*) o **Extra**
+  (lavoro aggiuntivo pagato a parte: si somma ai **ricavi**, così i materiali
+  extra non abbassano il guadagno del lavoro base). Conto economico chiaro
+  (Ricavi = fattura + extra − Costi = Margine) e cassa materiali sempre in vista.
+- 🧭 **Interfaccia essenziale** — in home tre numeri distinti (IVA netta,
+  bonifici incassati, disponibile dopo l'IVA) + i cantieri per categoria;
+  tutto il resto nel menu laterale. Nel cantiere due tasti rapidi
+  (materiali/utensili e bonifici).
+- 🧾 **Dettaglio incassi** — tocca "Bonifici incassati" in home per vedere tutti
+  i bonifici raggruppati **per cliente** (un cliente può avere più cantieri) o
+  **per cantiere**, con totali; tocca un bonifico per aprire il cantiere.
+
+---
+
+## Come si usa
+
+### Aprirla
+- **Modo più semplice (un solo file):** apri **`gestionale.html`** con un doppio
+  clic. Contiene tutto (nessun server, nessuna dipendenza) e lo puoi copiare/
+  salvare ovunque, anche sul telefono.
+- **Versione a più file:** apri `index.html` (identica, ma con file separati).
+- **Sul telefono/tablet:** vedi "Installazione sul telefono" più sotto.
+
+### Operazioni principali
+1. **Nuovo cantiere** → pulsante **＋** in basso a destra.
+2. **Aprire un cantiere** → tocca la sua scheda.
+3. Dentro il cantiere:
+   - **Allega fattura d'origine** (numero, data, imponibile, aliquota IVA, foto/PDF).
+   - **Aggiungi spesa** materiale o utensile (imponibile + aliquota → l'IVA viene
+     scalata in automatico).
+   - Vedi il **riepilogo IVA** del cantiere in alto.
+   - **✅ Segna come completato** → il cantiere finisce in **Archivio**.
+4. **Menu ☰** (in alto a destra): scadenzario, riepilogo IVA, statistiche,
+   spese generali, gestione categorie, impostazioni e backup.
+5. **Dentro un cantiere** trovi in cima 3 numeri chiave e due tasti rapidi
+   **🛠️ Materiali/utensili** e **💳 Bonifici**, più la scheda con fattura, preventivo e foto.
+
+---
+
+## Installazione sul telefono (consigliata)
+
+Per usarla come una vera app e scattare le foto delle fatture al volo, va servita
+via web (anche gratis). Due modi semplici:
+
+**A) Hosting gratuito (GitHub Pages)**
+1. Attiva GitHub Pages sul branch di questo repository (Settings → Pages).
+2. Apri l'URL fornito dal telefono.
+3. **iPhone (Safari):** Condividi → *Aggiungi a Home*.
+   **Android (Chrome):** menu ⋮ → *Installa app / Aggiungi a schermata Home*.
+
+**B) In locale, senza internet**
+```bash
+cd Nuovo
+python3 -m http.server 8080
+```
+Poi apri `http://<ip-del-pc>:8080` dal telefono sulla stessa rete Wi-Fi.
+
+> Nota: aprendo `index.html` con doppio clic (`file://`) l'app funziona lo stesso,
+> ma il salvataggio offline avanzato (service worker) e la fotocamera diretta
+> funzionano al meglio quando è servita via `http/https`.
+
+---
+
+## Dove finiscono i dati
+
+Tutto è salvato **localmente** nel browser del dispositivo (tecnologia
+IndexedDB): dati dei cantieri **e** allegati. Non vengono inviati da nessuna
+parte.
+
+⚠️ **Fai il backup periodico** (Impostazioni → *Esporta backup*): se cancelli i
+dati del browser o cambi dispositivo senza backup, i dati vanno persi. Il file di
+backup contiene tutto e si ripristina con *Importa backup*.
+
+---
+
+## Struttura del progetto
+
+```
+gestionale.html         Versione "tutto in un file" (build)
+index.html              Pagina principale (versione a più file)
+assets/styles.css       Stile (mobile-first, tema chiaro/scuro)
+assets/db.js            Salvataggio locale (IndexedDB) + backup/ripristino
+assets/app.js           Logica dell'app e calcolo IVA
+manifest.webmanifest    Configurazione "app installabile"
+sw.js                   Service worker (uso offline)
+icons/                  Icone dell'app
+build.mjs               Genera gestionale.html dai file sorgente
+```
+
+Nessuna libreria esterna: **JavaScript, HTML e CSS puri**.
