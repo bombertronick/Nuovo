@@ -664,6 +664,9 @@ main {
 .row-actions .btn { flex: 1 1 auto; }
 
 .tag-tipo { font-size: .68rem; padding: 2px 7px; border-radius: 6px; background: var(--border); color: var(--text-soft); font-weight: 700; }
+.bon-tag { font-size: .62rem; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing: .03em; }
+.bon-tag.acconto { background: var(--primary-soft); color: var(--primary-dark); }
+.bon-tag.extra { background: var(--ok-soft); color: var(--ok); }
 
 /* ------------------------- Strumenti (dashboard) ------------------------ */
 .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

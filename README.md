@@ -51,9 +51,11 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
   compaiono in cima a scheda cantiere e report.
 - 🧮 **Ritenuta d'acconto** — campo opzionale sulla fattura (es. 4% ritenuta
   condominiale); l'app calcola il **netto a incassare** e lo usa nello scadenzario.
-- 💳 **Bonifici del cliente** — registra i bonifici ricevuti (con causale e
-  contabile allegata). Ogni bonifico scala dall'imponibile **da incassare**;
-  la **cassa materiali** (bonifici − spese) si aggiorna a ogni spesa aggiunta.
+- 💳 **Bonifici del cliente (Acconto / Extra)** — ogni bonifico si segna come
+  **Acconto** (parte del prezzo concordato: scala il *da incassare*) o **Extra**
+  (lavoro aggiuntivo pagato a parte: si somma ai **ricavi**, così i materiali
+  extra non abbassano il guadagno del lavoro base). Conto economico chiaro
+  (Ricavi = fattura + extra − Costi = Margine) e cassa materiali sempre in vista.
 - 🧭 **Interfaccia essenziale** — in home tre numeri distinti (IVA netta,
   bonifici incassati, disponibile dopo l'IVA) + i cantieri per categoria;
   tutto il resto nel menu laterale. Nel cantiere due tasti rapidi

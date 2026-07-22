@@ -678,6 +678,9 @@ main {
 .row-actions .btn { flex: 1 1 auto; }
 
 .tag-tipo { font-size: .68rem; padding: 2px 7px; border-radius: 6px; background: var(--border); color: var(--text-soft); font-weight: 700; }
+.bon-tag { font-size: .62rem; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing: .03em; }
+.bon-tag.acconto { background: var(--primary-soft); color: var(--primary-dark); }
+.bon-tag.extra { background: var(--ok-soft); color: var(--ok); }
 
 /* ------------------------- Strumenti (dashboard) ------------------------ */
 .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -1042,18 +1045,27 @@ main {
       costiImponibile += num(s.imponibile);
     });
     const ricavoImponibile = cant.fatturaOrigine ? num(cant.fatturaOrigine.imponibile) : 0;
-    const bonificiTotale = (cant.bonifici || []).reduce((a, b) => a + num(b.importo), 0);
+    // Bonifici divisi per tipo: 'acconto' (sul lavoro concordato) vs 'extra' (lavoro aggiuntivo)
+    let accontiTotale = 0, extraTotale = 0;
+    (cant.bonifici || []).forEach(b => {
+      const imp = num(b.importo);
+      if (b.tipo === 'extra') extraTotale += imp; else accontiTotale += imp;
+    });
+    const bonificiTotale = accontiTotale + extraTotale;
+    // Gli extra sono lavoro aggiuntivo pagato: si sommano ai ricavi
+    const ricaviTotali = ricavoImponibile + extraTotale;
     return {
       ivaDebito: debito,
       ivaCredito: credito,
       ivaNetta: debito - credito,       // > 0 = IVA da versare, < 0 = credito IVA
-      ricavoImponibile,
+      ricavoImponibile,                 // solo lavoro base (fattura)
+      ricaviTotali,                     // fattura + extra
       costiImponibile,
-      margine: ricavoImponibile - costiImponibile,
-      bonificiTotale,
-      // Da incassare dal cliente = imponibile fattura - bonifici ricevuti
-      daIncassareImponibile: ricavoImponibile - bonificiTotale,
-      // Cassa materiali = bonifici ricevuti - spese (imponibile). >0 disponibile, <0 anticipato
+      margine: ricaviTotali - costiImponibile,   // guadagno: (fattura + extra) - costi
+      bonificiTotale, accontiTotale, extraTotale,
+      // Da incassare dal cliente = imponibile fattura - acconti (gli extra sono gia' pagati)
+      daIncassareImponibile: ricavoImponibile - accontiTotale,
+      // Cassa materiali = soldi ricevuti dal cliente - spese. >0 disponibile, <0 anticipato
       cassaMateriali: bonificiTotale - costiImponibile
     };
   }
@@ -1064,7 +1076,7 @@ main {
     state.cantieri.forEach(c => {
       const r = cantiereRiepilogo(c);
       debito += r.ivaDebito; credito += r.ivaCredito;
-      ricavo += r.ricavoImponibile; costi += r.costiImponibile;
+      ricavo += r.ricaviTotali; costi += r.costiImponibile;   // ricavi = fatture + extra
       bonifici += r.bonificiTotale;
     });
     (state.speseGenerali || []).forEach(s => {
@@ -1344,7 +1356,16 @@ main {
   function schedaSection(c, r, completato) {
     let html = '';
     html += `<div class="section-title">📊 Riepilogo IVA cantiere</div>`;
-    html += summaryGrid(r, true);
+    html += summaryGrid(r, false);
+
+    html += `<div class="section-title">💶 Conto economico</div>`;
+    html += `<div class="card">`;
+    html += infoRow('Ricavi (fattura + extra)', euro(r.ricaviTotali));
+    if (r.extraTotale) html += infoRow('&nbsp;&nbsp;• di cui lavori extra', euro(r.extraTotale));
+    html += infoRow('Costi (materiali/utensili)', `−${euro(r.costiImponibile)}`);
+    html += infoRow('Margine (guadagno)', `<b style="color:${r.margine >= 0 ? 'var(--ok)' : 'var(--danger)'}">${euro(r.margine)}</b>`);
+    html += `<p class="mini-note" style="margin-top:8px">Il ricavo è il prezzo al cliente (fattura) più gli eventuali lavori extra pagati. I costi si sottraggono per ottenere il guadagno.</p>`;
+    html += `</div>`;
 
     html += `<div class="section-title">ℹ️ Informazioni</div>`;
     html += `<div class="card">`;
@@ -2231,6 +2252,7 @@ main {
       if (c.fatturaOrigine && c.fatturaOrigine.incassato === undefined) c.fatturaOrigine.incassato = false;
       if (c.fatturaOrigine && c.fatturaOrigine.ritenuta === undefined) c.fatturaOrigine.ritenuta = 0;
       c.spese.forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; });
+      c.bonifici.forEach(bn => { if (bn.tipo === undefined) bn.tipo = 'acconto'; });
       if (!c.stato) c.stato = 'attivo';
     });
     (s.speseGenerali || []).forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; });
@@ -2772,23 +2794,30 @@ main {
     if (bonifici.length || r.bonificiTotale) {
       h += `<h3>Conto cliente (bonifici)</h3>`;
       if (bonifici.length) {
-        h += `<table><thead><tr><th>Data</th><th>Causale</th><th class="n">Importo</th></tr></thead><tbody>`;
-        bonifici.forEach(bn => h += `<tr><td>${fmtDate(bn.data)}</td><td>${esc(bn.causale || '')}</td><td class="n">${euro(bn.importo)}</td></tr>`);
+        h += `<table><thead><tr><th>Data</th><th>Tipo</th><th>Causale</th><th class="n">Importo</th></tr></thead><tbody>`;
+        bonifici.forEach(bn => h += `<tr><td>${fmtDate(bn.data)}</td><td>${bn.tipo === 'extra' ? 'Extra' : 'Acconto'}</td><td>${esc(bn.causale || '')}</td><td class="n">${euro(bn.importo)}</td></tr>`);
         h += `</tbody></table>`;
       }
       h += `<table><tbody>
-        <tr><td>Bonifici ricevuti</td><td class="n">${euro(r.bonificiTotale)}</td></tr>
-        ${c.fatturaOrigine ? `<tr class="tot"><td>Da incassare dal cliente (imponibile − bonifici)</td><td class="n">${euro(r.daIncassareImponibile)}</td></tr>` : ''}
+        <tr><td>Bonifici ricevuti (acconti ${euro(r.accontiTotale)} + extra ${euro(r.extraTotale)})</td><td class="n">${euro(r.bonificiTotale)}</td></tr>
+        ${c.fatturaOrigine ? `<tr class="tot"><td>Da incassare dal cliente (imponibile − acconti)</td><td class="n">${euro(r.daIncassareImponibile)}</td></tr>` : ''}
         <tr class="tot"><td>Cassa materiali (bonifici − spese)</td><td class="n">${euro(r.cassaMateriali)}</td></tr>
       </tbody></table>`;
     }
 
+    h += `<h3>Conto economico</h3>`;
+    h += `<table><tbody>
+      <tr><td>Ricavi lavoro base (fattura)</td><td class="n">${euro(r.ricavoImponibile)}</td></tr>
+      ${r.extraTotale ? `<tr><td>Ricavi lavori extra</td><td class="n">${euro(r.extraTotale)}</td></tr>` : ''}
+      <tr><td>Ricavi totali</td><td class="n">${euro(r.ricaviTotali)}</td></tr>
+      <tr><td>Costi materiali e utensili</td><td class="n">−${euro(r.costiImponibile)}</td></tr>
+      <tr class="tot"><td>Margine (guadagno)</td><td class="n">${euro(r.margine)}</td></tr>
+    </tbody></table>`;
     h += `<h3>Riepilogo IVA cantiere</h3>`;
     h += `<table><tbody>
       <tr><td>IVA a debito (fattura)</td><td class="n">${euro(r.ivaDebito)}</td></tr>
       <tr><td>IVA a credito (spese)</td><td class="n">${euro(r.ivaCredito)}</td></tr>
       <tr class="tot"><td>IVA netta ${r.ivaNetta < 0 ? '(a credito)' : '(da versare)'}</td><td class="n">${euro(Math.abs(r.ivaNetta))}</td></tr>
-      <tr class="tot"><td>Margine (ricavi − costi)</td><td class="n">${euro(r.margine)}</td></tr>
     </tbody></table>`;
     if (c.note) h += `<h3>Note</h3><div class="kv">${esc(c.note)}</div>`;
 
@@ -2814,7 +2843,7 @@ main {
 
   function statsPeriodo(year) {
     const inYear = d => year == null || annoOf(d) === year;
-    let fatturato = 0, costi = 0, ivaDeb = 0, ivaCre = 0, matImp = 0, uteImp = 0, nFatture = 0, nSpese = 0, daIncassare = 0, daPagare = 0;
+    let fatturato = 0, extraRicavi = 0, costi = 0, ivaDeb = 0, ivaCre = 0, matImp = 0, uteImp = 0, nFatture = 0, nSpese = 0, daIncassare = 0, daPagare = 0;
     const perCat = {};
     const cantieriFatt = new Set();
     state.cantieri.forEach(c => {
@@ -2827,6 +2856,10 @@ main {
         if (!f.incassato) daIncassare += totaleOf(f.imponibile, f.aliquota);
         cantieriFatt.add(c.id);
       }
+      // Lavori extra pagati via bonifico = ricavi aggiuntivi
+      (c.bonifici || []).forEach(b => {
+        if (b.tipo === 'extra' && inYear(b.data)) { extraRicavi += num(b.importo); cantieriFatt.add(c.id); }
+      });
       (c.spese || []).forEach(s => {
         if (!inYear(s.data)) return;
         costi += num(s.imponibile); ivaCre += ivaOf(s.imponibile, s.aliquota); nSpese++;
@@ -2840,12 +2873,13 @@ main {
       if (s.tipo === 'utensile') uteImp += num(s.imponibile); else matImp += num(s.imponibile);
       if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota);
     });
+    const ricavi = fatturato + extraRicavi;
     return {
-      fatturato, costi, margine: fatturato - costi, ivaDeb, ivaCre, ivaNetta: ivaDeb - ivaCre,
+      fatturato, extraRicavi, ricavi, costi, margine: ricavi - costi, ivaDeb, ivaCre, ivaNetta: ivaDeb - ivaCre,
       matImp, uteImp, nFatture, nSpese, perCat, daIncassare, daPagare,
       nCantieri: cantieriFatt.size,
-      margineMedio: cantieriFatt.size ? (fatturato - costi) / cantieriFatt.size : 0,
-      marginePct: fatturato ? (fatturato - costi) / fatturato * 100 : 0
+      margineMedio: cantieriFatt.size ? (ricavi - costi) / cantieriFatt.size : 0,
+      marginePct: ricavi ? (ricavi - costi) / ricavi * 100 : 0
     };
   }
 
@@ -2879,9 +2913,9 @@ main {
 
     // KPI
     html += `<div class="summary-grid" style="margin-top:8px">
-      <div class="stat"><div class="label">💶 Fatturato</div><div class="value" style="color:var(--primary)">${euro(st.fatturato)}</div><div class="hint">imponibile, ${st.nFatture} fatture</div></div>
+      <div class="stat"><div class="label">💶 Ricavi</div><div class="value" style="color:var(--primary)">${euro(st.ricavi)}</div><div class="hint">${st.extraRicavi ? 'fatture + ' + euro(st.extraRicavi) + ' extra' : st.nFatture + ' fatture'}</div></div>
       <div class="stat"><div class="label">🧾 Costi</div><div class="value" style="color:var(--warn)">${euro(st.costi)}</div><div class="hint">${st.nSpese} spese</div></div>
-      <div class="stat"><div class="label">📊 Margine</div><div class="value" style="color:var(--ok)">${euro(st.margine)}</div><div class="hint">${st.marginePct.toFixed(0)}% sul fatturato</div></div>
+      <div class="stat"><div class="label">📊 Margine</div><div class="value" style="color:var(--ok)">${euro(st.margine)}</div><div class="hint">${st.marginePct.toFixed(0)}% sui ricavi</div></div>
       <div class="stat"><div class="label">🏗️ Cantieri</div><div class="value">${st.nCantieri}</div><div class="hint">con fattura nel periodo</div></div>
     </div>`;
 
@@ -2925,7 +2959,9 @@ main {
     let h = `<h3>Riepilogo economico</h3>`;
     h += `<table><tbody>
       <tr><td>Fatturato (imponibile)</td><td class="n">${euro(st.fatturato)}</td></tr>
-      <tr><td>Costi materiali e utensili (imponibile)</td><td class="n">${euro(st.costi)}</td></tr>
+      ${st.extraRicavi ? `<tr><td>Lavori extra (bonifici)</td><td class="n">${euro(st.extraRicavi)}</td></tr>` : ''}
+      <tr><td>Ricavi totali</td><td class="n">${euro(st.ricavi)}</td></tr>
+      <tr><td>Costi materiali e utensili (imponibile)</td><td class="n">−${euro(st.costi)}</td></tr>
       <tr class="tot"><td>Margine (ricavi − costi)</td><td class="n">${euro(st.margine)} (${st.marginePct.toFixed(0)}%)</td></tr>
       <tr><td>Cantieri fatturati</td><td class="n">${st.nCantieri}</td></tr>
       <tr><td>Margine medio per cantiere</td><td class="n">${euro(st.margineMedio)}</td></tr>
@@ -2986,8 +3022,8 @@ main {
     const catId = i => (state.categorie[i] ? state.categorie[i].id : '');
     const spesa = (descr, tipo, forn, imp, aliq, data, pagato) =>
       ({ id: uid(), descrizione: descr, tipo, fornitore: forn, numeroDoc: '', imponibile: imp, aliquota: aliq, data, fileId: null, fileName: null, pagato });
-    const bonif = (importo, data, causale) =>
-      ({ id: uid(), importo, data, causale, fileId: null, fileName: null });
+    const bonif = (importo, data, causale, tipo) =>
+      ({ id: uid(), importo, data, causale, tipo: tipo || 'acconto', fileId: null, fileName: null });
 
     const demo = [
       {
@@ -3008,8 +3044,9 @@ main {
           spesa('Avvitatore a batteria', 'utensile', 'Utensilteria SPA', 450, 22, dt(2, 5), false)
         ],
         bonifici: [
-          bonif(5000, dt(2, 3), 'Acconto materiali'),
-          bonif(3000, dt(3, 1), 'Secondo acconto')
+          bonif(5000, dt(2, 3), 'Acconto materiali', 'acconto'),
+          bonif(3000, dt(3, 1), 'Secondo acconto', 'acconto'),
+          bonif(1200, dt(3, 10), 'Extra: punti luce giardino', 'extra')
         ],
         foto: []
       },
@@ -3063,13 +3100,16 @@ main {
     const cassaFavore = r.cassaMateriali >= 0;
     let h = `<div class="section-title">💳 Bonifici del cliente <span class="count">${bonifici.length}</span></div>`;
     h += `<div class="card">`;
+    const breakdown = (r.accontiTotale && r.extraTotale)
+      ? `acconti ${euro(r.accontiTotale)} · extra ${euro(r.extraTotale)}`
+      : (r.extraTotale ? 'tutti extra' : 'tutti acconti');
     h += `<div class="conto-grid">
-      <div class="conto-item"><div class="cl">Bonifici ricevuti</div><div class="cv">${euro(r.bonificiTotale)}</div></div>
+      <div class="conto-item"><div class="cl">Bonifici ricevuti</div><div class="cv">${euro(r.bonificiTotale)}</div><div class="ch">${r.bonificiTotale ? breakdown : ''}</div></div>
       <div class="conto-item"><div class="cl">Spese materiali/utensili</div><div class="cv">${euro(r.costiImponibile)}</div></div>
-      <div class="conto-item big"><div class="cl">Da incassare dal cliente</div><div class="cv due">${hasFattura ? euro(r.daIncassareImponibile) : '—'}</div><div class="ch">${hasFattura ? 'imponibile − bonifici' : 'aggiungi la fattura'}</div></div>
+      <div class="conto-item big"><div class="cl">Da incassare dal cliente</div><div class="cv due">${hasFattura ? euro(r.daIncassareImponibile) : '—'}</div><div class="ch">${hasFattura ? 'imponibile − acconti' : 'aggiungi la fattura'}</div></div>
       <div class="conto-item big"><div class="cl">Cassa materiali</div><div class="cv ${cassaFavore ? 'ok' : 'warn'}">${euro(Math.abs(r.cassaMateriali))}</div><div class="ch">${cassaFavore ? 'disponibile (bonifici − spese)' : 'anticipato di tasca tua'}</div></div>
     </div>`;
-    h += `<p class="mini-note">Ogni bonifico scala dall'imponibile "da incassare"; la "cassa materiali" cala ad ogni spesa aggiunta.</p>`;
+    h += `<p class="mini-note">Gli <b>acconti</b> scalano il "da incassare"; gli <b>extra</b> (lavoro aggiuntivo) si sommano ai ricavi. La "cassa materiali" cala ad ogni spesa.</p>`;
     if (bonifici.length) {
       h += `<div style="margin-top:10px">` + bonifici.map(bn => bonificoRow(c.id, bn)).join('') + `</div>`;
     }
@@ -3081,10 +3121,12 @@ main {
   function bonificoRow(cantId, bn) {
     const sub = [bn.causale, fmtDate(bn.data)].filter(Boolean).join(' · ');
     const fileLink = bn.fileId ? `<a class="attachment-link" data-action="open-file" data-file="${bn.fileId}" href="#">📎 ${esc(bn.fileName || 'Allegato')}</a>` : '';
+    const isExtra = bn.tipo === 'extra';
+    const tag = `<span class="bon-tag ${isExtra ? 'extra' : 'acconto'}">${isExtra ? 'EXTRA' : 'ACCONTO'}</span>`;
     return `<div class="expense-row">
       <div class="ex-icon">💳</div>
       <div class="ex-body">
-        <div class="ex-title">Bonifico</div>
+        <div class="ex-title">Bonifico ${tag}</div>
         <div class="ex-sub">${esc(sub || '—')}</div>
         ${fileLink}
       </div>
@@ -3098,17 +3140,29 @@ main {
     </div>`;
   }
 
+  let bonificoTipoSel = 'extra'; // 'acconto' | 'extra'
+
   function bonificoForm(cantId, existing) {
     const bn = existing || {};
+    bonificoTipoSel = bn.tipo || 'extra';
     pendingFile = null;
     const body = `
+      <div class="field">
+        <label>Tipo di bonifico</label>
+        <div class="seg" id="bn-seg">
+          <button type="button" data-btipo="acconto" class="${bonificoTipoSel === 'acconto' ? 'active' : ''}">🧾 Acconto</button>
+          <button type="button" data-btipo="extra" class="${bonificoTipoSel === 'extra' ? 'active' : ''}">➕ Lavoro extra</button>
+        </div>
+        <div class="hint"><b>Acconto</b> = parte del prezzo concordato (scala il "da incassare"). <b>Extra</b> = lavoro aggiuntivo pagato a parte (si somma ai ricavi).</div>
+      </div>
       <div class="field-row">
         <div class="field"><label>Importo (€) *</label><input id="bn-imp" type="number" inputmode="decimal" step="0.01" value="${bn.importo != null ? bn.importo : ''}" placeholder="0,00"></div>
         <div class="field"><label>Data</label><input id="bn-data" type="date" value="${esc(bn.data || todayISO())}"></div>
       </div>
-      <div class="field"><label>Causale</label><input id="bn-caus" type="text" value="${esc(bn.causale || '')}" placeholder="Es. Acconto materiali"></div>
+      <div class="field"><label>Causale</label><input id="bn-caus" type="text" value="${esc(bn.causale || '')}" placeholder="Es. Acconto lavori / Extra bagno"></div>
       <div class="iva-proj" id="bn-proj">
         <div class="proj-title">📊 Conto cliente dopo questo bonifico</div>
+        <div class="proj-row"><span>Ricavi cantiere (fattura + extra)</span><b id="bn-ric">—</b></div>
         <div class="proj-row"><span>Da incassare dal cliente</span><b id="bn-inc">—</b></div>
         <div class="proj-row net"><span>Cassa materiali</span><b id="bn-cassa">—</b></div>
       </div>
@@ -3128,18 +3182,35 @@ main {
     const c = state.cantieri.find(x => x.id === cantId);
     const imponibileFatt = c.fatturaOrigine ? num(c.fatturaOrigine.imponibile) : 0;
     const costi = (c.spese || []).reduce((a, s) => a + num(s.imponibile), 0);
-    const bonificiAltri = (c.bonifici || []).reduce((a, b) => a + (b.id === escludiId ? 0 : num(b.importo)), 0);
+    let baseAcconti = 0, baseExtra = 0;
+    (c.bonifici || []).forEach(b => {
+      if (b.id === escludiId) return;
+      if (b.tipo === 'extra') baseExtra += num(b.importo); else baseAcconti += num(b.importo);
+    });
     const upd = () => {
       const q = num(document.getElementById('bn-imp').value);
-      const totBon = bonificiAltri + q;
-      const inc = imponibileFatt - totBon;
-      const cassa = totBon - costi;
+      const isExtra = bonificoTipoSel === 'extra';
+      const totAcconti = baseAcconti + (isExtra ? 0 : q);
+      const totExtra = baseExtra + (isExtra ? q : 0);
+      const ricavi = imponibileFatt + totExtra;
+      const inc = imponibileFatt - totAcconti;
+      const cassa = (totAcconti + totExtra) - costi;
+      const ricEl = document.getElementById('bn-ric');
+      if (ricEl) ricEl.textContent = c.fatturaOrigine || totExtra ? euro(ricavi) : '—';
       document.getElementById('bn-inc').textContent = c.fatturaOrigine ? euro(inc) : '—';
       const cassaEl = document.getElementById('bn-cassa');
       cassaEl.textContent = euro(Math.abs(cassa)) + (cassa < 0 ? ' anticipato' : ' disponibile');
       cassaEl.className = cassa < 0 ? 'warn' : 'ok';
     };
     document.getElementById('bn-imp').addEventListener('input', upd);
+    const seg = document.getElementById('bn-seg');
+    if (seg) seg.addEventListener('click', e => {
+      const b = e.target.closest('button[data-btipo]');
+      if (!b) return;
+      bonificoTipoSel = b.dataset.btipo;
+      seg.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+      upd();
+    });
     upd();
   }
 
@@ -3155,6 +3226,7 @@ main {
     else if (pendingFile) { if (fileId) await DB.deleteFile(fileId); fileId = uid(); await DB.saveFile(fileId, pendingFile.blob); fileName = pendingFile.name; }
     const data = {
       importo,
+      tipo: bonificoTipoSel,
       data: document.getElementById('bn-data').value || '',
       causale: document.getElementById('bn-caus').value.trim(),
       fileId, fileName
