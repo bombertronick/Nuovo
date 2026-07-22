@@ -591,6 +591,7 @@ main {
 
 /* Tab rapidi nel cantiere */
 .ctabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.ctabs.ctabs-4 { grid-template-columns: repeat(2, 1fr); }
 .ctab {
   position: relative; background: var(--surface); border: 1.5px solid var(--border);
   border-radius: var(--radius); padding: 12px 4px; cursor: pointer; color: var(--text-soft);
@@ -1039,11 +1040,20 @@ main {
   // Riepilogo IVA per un cantiere: debito (fattura al cliente) - credito (spese)
   function cantiereRiepilogo(cant) {
     const debito = cant.fatturaOrigine ? ivaOf(cant.fatturaOrigine.imponibile, cant.fatturaOrigine.aliquota) : 0;
-    let credito = 0, costiImponibile = 0;
+    // Costi MATERIALI/utensili (blocco "materiali")
+    let ivaCreditoMateriali = 0, costiMateriali = 0;
     (cant.spese || []).forEach(s => {
-      credito += ivaOf(s.imponibile, s.aliquota);
-      costiImponibile += num(s.imponibile);
+      ivaCreditoMateriali += ivaOf(s.imponibile, s.aliquota);
+      costiMateriali += num(s.imponibile);
     });
+    // Costi COLLABORATORI (blocco "collaboratori": stessa logica dei materiali)
+    let ivaCreditoCollab = 0, costiCollaboratori = 0;
+    (cant.collaboratori || []).forEach(s => {
+      ivaCreditoCollab += ivaOf(s.imponibile, s.aliquota);
+      costiCollaboratori += num(s.imponibile);
+    });
+    const credito = ivaCreditoMateriali + ivaCreditoCollab;   // IVA a credito totale (materiali + collaboratori)
+    const costiImponibile = costiMateriali + costiCollaboratori; // costi totali che riducono il margine
     const ricavoImponibile = cant.fatturaOrigine ? num(cant.fatturaOrigine.imponibile) : 0;
     // Bonifici divisi per tipo: 'acconto' (sul lavoro concordato) vs 'extra' (lavoro aggiuntivo)
     let accontiTotale = 0, extraTotale = 0;
@@ -1060,13 +1070,16 @@ main {
       ivaNetta: debito - credito,       // > 0 = IVA da versare, < 0 = credito IVA
       ricavoImponibile,                 // solo lavoro base (fattura)
       ricaviTotali,                     // fattura + extra
+      costiMateriali, costiCollaboratori,
       costiImponibile,
-      margine: ricaviTotali - costiImponibile,   // guadagno: (fattura + extra) - costi
+      // MARGINE: usa SOLO ricavi e costi. NON contiene la cassa materiali.
+      margine: ricaviTotali - costiImponibile,
       bonificiTotale, accontiTotale, extraTotale,
-      // Da incassare dal cliente = imponibile fattura - acconti (gli extra sono gia' pagati)
+      // SOLDI DA RISCUOTERE: solo imponibile fattura - acconti. NON contiene la cassa materiali.
       daIncassareImponibile: ricavoImponibile - accontiTotale,
-      // Cassa materiali = soldi ricevuti dal cliente - spese. >0 disponibile, <0 anticipato
-      cassaMateriali: bonificiTotale - costiImponibile
+      // CASSA MATERIALI: flusso separato = bonifici ricevuti - SOLO costi materiali.
+      // Non entra nel margine né nei soldi da riscuotere.
+      cassaMateriali: bonificiTotale - costiMateriali
     };
   }
 
@@ -1312,17 +1325,20 @@ main {
       <div class="ms"><div class="ms-l">Cassa materiali</div><div class="ms-v" style="color:${cassaFav ? 'var(--ok)' : 'var(--warn)'}">${euro(Math.abs(r.cassaMateriali))}</div></div>
     </div>`;
 
-    // Tab rapidi
+    // Tab rapidi (2x2)
     const nSpese = (c.spese || []).length;
+    const nCollab = (c.collaboratori || []).length;
     const nBon = (c.bonifici || []).length;
-    html += `<div class="ctabs">
+    html += `<div class="ctabs ctabs-4">
       <button class="ctab ${cantiereTab === 'materiali' ? 'active' : ''}" data-action="cant-tab" data-tab="materiali"><span class="ct-ic">🛠️</span><span>Materiali<br>e utensili</span>${nSpese ? `<span class="ct-n">${nSpese}</span>` : ''}</button>
+      <button class="ctab ${cantiereTab === 'collaboratori' ? 'active' : ''}" data-action="cant-tab" data-tab="collaboratori"><span class="ct-ic">🧑‍🔧</span><span>Collaboratori</span>${nCollab ? `<span class="ct-n">${nCollab}</span>` : ''}</button>
       <button class="ctab ${cantiereTab === 'bonifici' ? 'active' : ''}" data-action="cant-tab" data-tab="bonifici"><span class="ct-ic">💳</span><span>Bonifici<br>cliente</span>${nBon ? `<span class="ct-n">${nBon}</span>` : ''}</button>
       <button class="ctab ${cantiereTab === 'scheda' ? 'active' : ''}" data-action="cant-tab" data-tab="scheda"><span class="ct-ic">📋</span><span>Scheda<br>e fattura</span></button>
     </div>`;
 
     html += `<div class="ctab-content">`;
-    if (cantiereTab === 'bonifici') html += bonificiSection(c, r);
+    if (cantiereTab === 'collaboratori') html += collaboratoriSection(c);
+    else if (cantiereTab === 'bonifici') html += bonificiSection(c, r);
     else if (cantiereTab === 'scheda') html += schedaSection(c, r, completato);
     else html += speseSection(c);
     html += `</div>`;
@@ -1362,9 +1378,10 @@ main {
     html += `<div class="card">`;
     html += infoRow('Ricavi (fattura + extra)', euro(r.ricaviTotali));
     if (r.extraTotale) html += infoRow('&nbsp;&nbsp;• di cui lavori extra', euro(r.extraTotale));
-    html += infoRow('Costi (materiali/utensili)', `−${euro(r.costiImponibile)}`);
+    html += infoRow('Costi materiali/utensili', `−${euro(r.costiMateriali)}`);
+    html += infoRow('Costi collaboratori', `−${euro(r.costiCollaboratori)}`);
     html += infoRow('Margine (guadagno)', `<b style="color:${r.margine >= 0 ? 'var(--ok)' : 'var(--danger)'}">${euro(r.margine)}</b>`);
-    html += `<p class="mini-note" style="margin-top:8px">Il ricavo è il prezzo al cliente (fattura) più gli eventuali lavori extra pagati. I costi si sottraggono per ottenere il guadagno.</p>`;
+    html += `<p class="mini-note" style="margin-top:8px">Ricavo = prezzo al cliente (fattura) + lavori extra. Si sottraggono i costi (materiali e collaboratori) per il guadagno. La <b>cassa materiali</b> è un conto a parte e non influenza il margine.</p>`;
     html += `</div>`;
 
     html += `<div class="section-title">ℹ️ Informazioni</div>`;
@@ -1582,7 +1599,7 @@ main {
       Object.assign(c, data);
       toast('Cantiere aggiornato');
     } else {
-      const c = Object.assign({ id: uid(), stato: 'attivo', fatturaOrigine: null, preventivo: null, spese: [], foto: [], bonifici: [] }, data);
+      const c = Object.assign({ id: uid(), stato: 'attivo', fatturaOrigine: null, preventivo: null, spese: [], collaboratori: [], foto: [], bonifici: [] }, data);
       state.cantieri.unshift(c);
       route = { name: 'cantiere', id: c.id };
       toast('Cantiere creato');
@@ -1743,20 +1760,22 @@ main {
     wireFileDrop('sp-file');
   }
 
-  // IVA a debito/credito del contesto (cantiere o azienda), esclusa la spesa in modifica
+  // IVA a debito/credito del contesto (cantiere o azienda), escluso l'elemento in modifica.
+  // La IVA a credito include SIA le spese materiali SIA i collaboratori.
   function baseIvaContesto(ownerId, escludiId) {
     let debito = 0, credito = 0;
+    const addCred = arr => (arr || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
     if (ownerId === 'generale') {
       state.cantieri.forEach(c => {
         if (c.fatturaOrigine) debito += ivaOf(c.fatturaOrigine.imponibile, c.fatturaOrigine.aliquota);
-        (c.spese || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+        addCred(c.spese); addCred(c.collaboratori);
       });
-      (state.speseGenerali || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+      addCred(state.speseGenerali);
     } else {
       const c = state.cantieri.find(x => x.id === ownerId);
       if (c) {
         if (c.fatturaOrigine) debito = ivaOf(c.fatturaOrigine.imponibile, c.fatturaOrigine.aliquota);
-        (c.spese || []).forEach(s => { if (s.id !== escludiId) credito += ivaOf(s.imponibile, s.aliquota); });
+        addCred(c.spese); addCred(c.collaboratori);
       }
     }
     return { debito, credito };
@@ -1838,8 +1857,10 @@ main {
 
   /* ------- Helper form: aliquote, anteprima IVA, file ------- */
   function aliquotaSelect(id, val) {
-    const v = val != null ? num(val) : DEFAULT_ALIQUOTA;
-    return `<select id="${id}">${ALIQUOTE.map(a => `<option value="${a}" ${a === v ? 'selected' : ''}>${a}%</option>`).join('')}</select>`;
+    // val può essere 0 (0% = esente/reverse charge): distinguo esplicitamente 0 da "non impostato".
+    const v = (val === 0 || val) ? num(val) : DEFAULT_ALIQUOTA;
+    const label = a => a === 0 ? '0% (esente / reverse charge)' : a + '%';
+    return `<select id="${id}">${ALIQUOTE.map(a => `<option value="${a}" ${a === v ? 'selected' : ''}>${label(a)}</option>`).join('')}</select>`;
   }
 
   function wireIvaPreview(impId, aliqId, previewId, label) {
@@ -2116,6 +2137,16 @@ main {
       }
       case 'save-spesa': await saveSpesa(owner, id); break;
       case 'del-spesa': await delSpesa(owner, id); break;
+      // --- blocco collaboratori (clone materiali) ---
+      case 'add-collab': collaboratoreForm(id); break;
+      case 'edit-collab': {
+        const cc = state.cantieri.find(x => x.id === owner);
+        collaboratoreForm(owner, (cc.collaboratori || []).find(x => x.id === id));
+        break;
+      }
+      case 'save-collab': await saveCollaboratore(owner, id); break;
+      case 'del-collab': await delCollaboratore(owner, id); break;
+      case 'toggle-pagato-collab': toggleCollabPagato(owner, id); break;
       case 'completa': completaCantiere(id); break;
       case 'riapri': riapriCantiere(id); break;
       case 'del-cantiere': await delCantiere(id); break;
@@ -2224,6 +2255,7 @@ main {
     // elimina allegati collegati
     if (c.fatturaOrigine && c.fatturaOrigine.fileId) await DB.deleteFile(c.fatturaOrigine.fileId);
     for (const s of (c.spese || [])) if (s.fileId) await DB.deleteFile(s.fileId);
+    for (const s of (c.collaboratori || [])) if (s.fileId) await DB.deleteFile(s.fileId);
     for (const f of (c.foto || [])) if (f.fileId) await DB.deleteFile(f.fileId);
     for (const bn of (c.bonifici || [])) if (bn.fileId) await DB.deleteFile(bn.fileId);
     state.cantieri = state.cantieri.filter(x => x.id !== id);
@@ -2245,6 +2277,7 @@ main {
     s.speseGenerali = Array.isArray(s.speseGenerali) ? s.speseGenerali : [];
     s.cantieri.forEach(c => {
       c.spese = Array.isArray(c.spese) ? c.spese : [];
+      c.collaboratori = Array.isArray(c.collaboratori) ? c.collaboratori : [];
       c.foto = Array.isArray(c.foto) ? c.foto : [];
       c.bonifici = Array.isArray(c.bonifici) ? c.bonifici : [];
       if (c.fatturaOrigine === undefined) c.fatturaOrigine = null;
@@ -2314,6 +2347,7 @@ main {
     state.cantieri.forEach(c => {
       if (c.fatturaOrigine && !c.fatturaOrigine.incassato) daIncassare += nettoIncassoFattura(c.fatturaOrigine);
       (c.spese || []).forEach(s => { if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota); });
+      (c.collaboratori || []).forEach(s => { if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota); });
     });
     (state.speseGenerali || []).forEach(s => { if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota); });
     return { daIncassare, daPagare };
@@ -2344,6 +2378,14 @@ main {
       (c.spese || []).forEach(s => {
         const item = {
           kind: 'spesa', owner: c.id, id: s.id, cantId: c.id, titolo: s.descrizione || 'Spesa',
+          sub: [c.nome, s.fornitore, fmtDate(s.data)].filter(Boolean).join(' · '),
+          tot: totaleOf(s.imponibile, s.aliquota)
+        };
+        (s.pagato ? pagate : daPagare).push(item);
+      });
+      (c.collaboratori || []).forEach(s => {
+        const item = {
+          kind: 'collab', owner: c.id, id: s.id, cantId: c.id, titolo: '🧑‍🔧 ' + (s.descrizione || 'Collaboratore'),
           sub: [c.nome, s.fornitore, fmtDate(s.data)].filter(Boolean).join(' · '),
           tot: totaleOf(s.imponibile, s.aliquota)
         };
@@ -2393,7 +2435,7 @@ main {
     h += items.map(i => {
       const toggle = i.kind === 'fattura'
         ? `<button class="btn ${done ? 'btn-ghost' : 'btn-ok'} btn-sm" data-action="toggle-incasso" data-id="${i.cantId}" style="padding:6px 10px">${done ? '↩️' : '✅'}</button>`
-        : `<button class="btn ${done ? 'btn-ghost' : 'btn-ok'} btn-sm" data-action="toggle-pagato" data-owner="${i.owner}" data-id="${i.id}" style="padding:6px 10px">${done ? '↩️' : '✅'}</button>`;
+        : `<button class="btn ${done ? 'btn-ghost' : 'btn-ok'} btn-sm" data-action="${i.kind === 'collab' ? 'toggle-pagato-collab' : 'toggle-pagato'}" data-owner="${i.owner}" data-id="${i.id}" style="padding:6px 10px">${done ? '↩️' : '✅'}</button>`;
       const openAttr = i.cantId ? `data-action="open-cantiere" data-id="${i.cantId}"` : '';
       return `<div class="expense-row">
         <div class="ex-body" ${openAttr} style="cursor:${i.cantId ? 'pointer' : 'default'}">
@@ -2790,6 +2832,14 @@ main {
       h += `</tbody></table>`;
     }
 
+    const collab = c.collaboratori || [];
+    if (collab.length) {
+      h += `<h3>Collaboratori</h3>`;
+      h += `<table><thead><tr><th>Prestazione</th><th>Fornitore</th><th>N° fatt.</th><th>Data</th><th class="n">Imponibile</th><th class="n">IVA</th><th class="n">Totale</th><th>Pagata</th></tr></thead><tbody>`;
+      collab.forEach(s => h += `<tr><td>${esc(s.descrizione || '')}</td><td>${esc(s.fornitore || '')}</td><td>${esc(s.numeroDoc || '')}</td><td>${fmtDate(s.data)}</td><td class="n">${euro(s.imponibile)}</td><td class="n">${euro(ivaOf(s.imponibile, s.aliquota))}</td><td class="n">${euro(totaleOf(s.imponibile, s.aliquota))}</td><td>${s.pagato ? 'Sì' : 'No'}</td></tr>`);
+      h += `</tbody></table>`;
+    }
+
     const bonifici = c.bonifici || [];
     if (bonifici.length || r.bonificiTotale) {
       h += `<h3>Conto cliente (bonifici)</h3>`;
@@ -2810,7 +2860,8 @@ main {
       <tr><td>Ricavi lavoro base (fattura)</td><td class="n">${euro(r.ricavoImponibile)}</td></tr>
       ${r.extraTotale ? `<tr><td>Ricavi lavori extra</td><td class="n">${euro(r.extraTotale)}</td></tr>` : ''}
       <tr><td>Ricavi totali</td><td class="n">${euro(r.ricaviTotali)}</td></tr>
-      <tr><td>Costi materiali e utensili</td><td class="n">−${euro(r.costiImponibile)}</td></tr>
+      <tr><td>Costi materiali/utensili</td><td class="n">−${euro(r.costiMateriali)}</td></tr>
+      <tr><td>Costi collaboratori</td><td class="n">−${euro(r.costiCollaboratori)}</td></tr>
       <tr class="tot"><td>Margine (guadagno)</td><td class="n">${euro(r.margine)}</td></tr>
     </tbody></table>`;
     h += `<h3>Riepilogo IVA cantiere</h3>`;
@@ -2843,7 +2894,7 @@ main {
 
   function statsPeriodo(year) {
     const inYear = d => year == null || annoOf(d) === year;
-    let fatturato = 0, extraRicavi = 0, costi = 0, ivaDeb = 0, ivaCre = 0, matImp = 0, uteImp = 0, nFatture = 0, nSpese = 0, daIncassare = 0, daPagare = 0;
+    let fatturato = 0, extraRicavi = 0, costi = 0, ivaDeb = 0, ivaCre = 0, matImp = 0, uteImp = 0, collabImp = 0, nFatture = 0, nSpese = 0, daIncassare = 0, daPagare = 0;
     const perCat = {};
     const cantieriFatt = new Set();
     state.cantieri.forEach(c => {
@@ -2866,6 +2917,12 @@ main {
         if (s.tipo === 'utensile') uteImp += num(s.imponibile); else matImp += num(s.imponibile);
         if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota);
       });
+      (c.collaboratori || []).forEach(s => {
+        if (!inYear(s.data)) return;
+        costi += num(s.imponibile); ivaCre += ivaOf(s.imponibile, s.aliquota); nSpese++;
+        collabImp += num(s.imponibile);
+        if (!s.pagato) daPagare += totaleOf(s.imponibile, s.aliquota);
+      });
     });
     (state.speseGenerali || []).forEach(s => {
       if (!inYear(s.data)) return;
@@ -2876,7 +2933,7 @@ main {
     const ricavi = fatturato + extraRicavi;
     return {
       fatturato, extraRicavi, ricavi, costi, margine: ricavi - costi, ivaDeb, ivaCre, ivaNetta: ivaDeb - ivaCre,
-      matImp, uteImp, nFatture, nSpese, perCat, daIncassare, daPagare,
+      matImp, uteImp, collabImp, nFatture, nSpese, perCat, daIncassare, daPagare,
       nCantieri: cantieriFatt.size,
       margineMedio: cantieriFatt.size ? (ricavi - costi) / cantieriFatt.size : 0,
       marginePct: ricavi ? (ricavi - costi) / ricavi * 100 : 0
@@ -2928,11 +2985,12 @@ main {
     html += `<div class="section-title">🏷️ Fatturato per categoria</div>`;
     html += `<div class="card">${barChart(catItems)}</div>`;
 
-    // Ripartizione costi materiali/utensili
-    html += `<div class="section-title">🛠️ Costi: materiali vs utensili</div>`;
+    // Ripartizione costi
+    html += `<div class="section-title">🛠️ Costi per tipo</div>`;
     html += `<div class="card">${barChart([
       { label: '📦 Materiali', value: st.matImp, color: 'var(--primary)' },
-      { label: '🔧 Utensili', value: st.uteImp, color: 'var(--accent)' }
+      { label: '🔧 Utensili', value: st.uteImp, color: 'var(--accent)' },
+      { label: '🧑‍🔧 Collaboratori', value: st.collabImp, color: 'var(--ok)' }
     ])}</div>`;
 
     // Altri indicatori
@@ -3024,6 +3082,8 @@ main {
       ({ id: uid(), descrizione: descr, tipo, fornitore: forn, numeroDoc: '', imponibile: imp, aliquota: aliq, data, fileId: null, fileName: null, pagato });
     const bonif = (importo, data, causale, tipo) =>
       ({ id: uid(), importo, data, causale, tipo: tipo || 'acconto', fileId: null, fileName: null });
+    const collab = (descr, forn, imp, aliq, data, pagato) =>
+      ({ id: uid(), descrizione: descr, fornitore: forn, numeroDoc: '', imponibile: imp, aliquota: aliq, data, fileId: null, fileName: null, pagato });
 
     const demo = [
       {
@@ -3042,6 +3102,10 @@ main {
         spese: [
           spesa('Cavi, canaline e frutti', 'materiale', 'Elettroforniture SRL', 3200, 22, dt(2, 12), true),
           spesa('Avvitatore a batteria', 'utensile', 'Utensilteria SPA', 450, 22, dt(2, 5), false)
+        ],
+        collaboratori: [
+          collab('Manodopera aiutante impianto', 'Rossi Impianti Srl', 1500, 22, dt(2, 15), true),
+          collab('Cartongessista (forfettario)', 'Bianchi', 800, 0, dt(2, 20), false)
         ],
         bonifici: [
           bonif(5000, dt(2, 3), 'Acconto materiali', 'acconto'),
@@ -3105,7 +3169,7 @@ main {
       : (r.extraTotale ? 'tutti extra' : 'tutti acconti');
     h += `<div class="conto-grid">
       <div class="conto-item"><div class="cl">Bonifici ricevuti</div><div class="cv">${euro(r.bonificiTotale)}</div><div class="ch">${r.bonificiTotale ? breakdown : ''}</div></div>
-      <div class="conto-item"><div class="cl">Spese materiali/utensili</div><div class="cv">${euro(r.costiImponibile)}</div></div>
+      <div class="conto-item"><div class="cl">Spese materiali/utensili</div><div class="cv">${euro(r.costiMateriali)}</div></div>
       <div class="conto-item big"><div class="cl">Da incassare dal cliente</div><div class="cv due">${hasFattura ? euro(r.daIncassareImponibile) : '—'}</div><div class="ch">${hasFattura ? 'imponibile − acconti' : 'aggiungi la fattura'}</div></div>
       <div class="conto-item big"><div class="cl">Cassa materiali</div><div class="cv ${cassaFavore ? 'ok' : 'warn'}">${euro(Math.abs(r.cassaMateriali))}</div><div class="ch">${cassaFavore ? 'disponibile (bonifici − spese)' : 'anticipato di tasca tua'}</div></div>
     </div>`;
@@ -3388,6 +3452,157 @@ main {
     html += `</section>`;
     app().innerHTML = html;
     document.getElementById('fab').classList.add('hidden');
+  }
+
+  /* ============ Blocco "Collaboratori" (clone del blocco Materiali) =========
+     Stessa struttura, flusso dati e logica dei materiali: fatture, IVA scalata
+     (a credito), imponibile sottratto dal totale (margine). Variabili, chiavi e
+     azioni rinominate in "collab" per evitare conflitti di stato. */
+  function collaboratoriSection(c) {
+    const list = c.collaboratori || [];
+    let html = `<div class="section-title">🧑‍🔧 Collaboratori <span class="count">${list.length}</span></div>`;
+    html += `<div class="card">`;
+    html += `<p class="mini-note">Fatture di collaboratori / subappalti. L'IVA si scala (a credito) e l'imponibile si sottrae dal margine, esattamente come per i materiali.</p>`;
+    if (list.length) {
+      html += `<div style="margin-top:12px">` + list.map(s => collaboratoreRow(s, c.id)).join('') + `</div>`;
+      const totImp = list.reduce((a, s) => a + totaleOf(s.imponibile, s.aliquota), 0);
+      const totIva = list.reduce((a, s) => a + ivaOf(s.imponibile, s.aliquota), 0);
+      html += `<div class="iva-preview"><span>Totale fatture: ${euro(totImp)}</span><span>IVA scalata: ${euro(totIva)}</span></div>`;
+    } else {
+      html += emptyState('🧑‍🔧', 'Nessun collaboratore', 'Registra le fatture dei collaboratori / subappalti di questo cantiere.');
+    }
+    html += `<button class="btn btn-accent btn-block" style="margin-top:12px" data-action="add-collab" data-id="${c.id}">➕ Aggiungi collaboratore (fattura)</button>`;
+    html += `</div>`;
+    return html;
+  }
+
+  function collaboratoreRow(s, cantId) {
+    const iva = ivaOf(s.imponibile, s.aliquota);
+    const tot = totaleOf(s.imponibile, s.aliquota);
+    const sub = [s.fornitore, s.numeroDoc ? 'n.' + s.numeroDoc : '', fmtDate(s.data)].filter(Boolean).join(' · ');
+    const fileLink = s.fileId ? `<a class="attachment-link" data-action="open-file" data-file="${s.fileId}" href="#">📎 ${esc(s.fileName || 'Allegato')}</a>` : '';
+    const payBadge = s.pagato ? `<span class="pay-badge paid">✅ Pagata</span>` : `<span class="pay-badge due">⏳ Da pagare</span>`;
+    return `<div class="expense-row">
+      <div class="ex-icon">🧑‍🔧</div>
+      <div class="ex-body">
+        <div class="ex-title">${esc(s.descrizione || 'Collaboratore')}</div>
+        <div class="ex-sub">${esc(sub || '—')}</div>
+        <div style="margin-top:4px">${payBadge}</div>
+        ${fileLink}
+      </div>
+      <div class="ex-amount">
+        <div class="tot">${euro(tot)}</div>
+        <div class="iva">IVA ${euro(iva)} (${s.aliquota}%)</div>
+        <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn ${s.pagato ? 'btn-ghost' : 'btn-ok'} btn-sm" data-action="toggle-pagato-collab" data-owner="${cantId}" data-id="${s.id}" style="padding:5px 8px" title="${s.pagato ? 'Segna da pagare' : 'Segna pagata'}">${s.pagato ? '↩️' : '💶'}</button>
+          <button class="btn btn-ghost btn-sm" data-action="edit-collab" data-owner="${cantId}" data-id="${s.id}" style="padding:5px 8px">✏️</button>
+          <button class="btn btn-danger btn-sm" data-action="del-collab" data-owner="${cantId}" data-id="${s.id}" style="padding:5px 8px">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function collaboratoreForm(cantId, existing) {
+    const s = existing || {};
+    pendingFile = null;
+    const body = `
+      <div class="field"><label>Collaboratore / prestazione *</label><input id="co-desc" type="text" value="${esc(s.descrizione || '')}" placeholder="Es. Mario Rossi / Manodopera impianto"></div>
+      <div class="field-row">
+        <div class="field"><label>Fornitore / ditta</label><input id="co-forn" type="text" value="${esc(s.fornitore || '')}" placeholder="Ragione sociale"></div>
+        <div class="field"><label>N° fattura</label><input id="co-doc" type="text" value="${esc(s.numeroDoc || '')}" placeholder="Es. 12"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Imponibile (€) *</label><input id="co-imp" type="number" inputmode="decimal" step="0.01" value="${s.imponibile != null ? s.imponibile : ''}" placeholder="0,00"></div>
+        <div class="field"><label>Aliquota IVA</label>${aliquotaSelect('co-aliq', s.aliquota)}</div>
+      </div>
+      <div class="field"><label>Data</label><input id="co-data" type="date" value="${esc(s.data || todayISO())}"></div>
+      <div class="hint" style="margin:-6px 0 8px">Per fatture senza IVA (forfettari, reverse charge) scegli <b>0%</b>.</div>
+      <div class="iva-preview" id="co-preview"><span>IVA scalata: —</span><span>Totale: —</span></div>
+      <div class="iva-proj" id="co-proj">
+        <div class="proj-title">📊 Effetto sul totale IVA del cantiere</div>
+        <div class="proj-row"><span>IVA a debito (fattura)</span><b id="co-deb">—</b></div>
+        <div class="proj-row"><span>IVA a credito <em>(con questa fattura)</em></span><b id="co-cre">—</b></div>
+        <div class="proj-row net"><span>IVA netta prevista</span><b id="co-net">—</b></div>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label>Allega fattura collaboratore (foto/PDF)</label>
+        ${fileDrop('co-file', s.fileName)}
+      </div>
+    `;
+    const foot = `<button class="btn btn-ghost" data-action="close-modal">Annulla</button>
+      <button class="btn btn-accent btn-block" data-action="save-collab" data-owner="${cantId}" data-id="${s.id || ''}">💾 Salva collaboratore</button>`;
+    openModal(existing ? 'Modifica collaboratore' : 'Nuovo collaboratore', body, foot);
+    wireIvaPreview('co-imp', 'co-aliq', 'co-preview', 'IVA scalata');
+    wireCollabProjection(cantId, existing ? existing.id : null);
+    wireFileDrop('co-file');
+  }
+
+  function wireCollabProjection(cantId, escludiId) {
+    const base = baseIvaContesto(cantId, escludiId);
+    const upd = () => {
+      const imp = num(document.getElementById('co-imp').value);
+      const aliq = num(document.getElementById('co-aliq').value);
+      const thisIva = ivaOf(imp, aliq);
+      const creditoTot = base.credito + thisIva;
+      const netta = base.debito - creditoTot;
+      document.getElementById('co-deb').textContent = euro(base.debito);
+      document.getElementById('co-cre').innerHTML = euro(creditoTot) + (thisIva ? ` <span class="add">+${euro(thisIva)}</span>` : '');
+      const netEl = document.getElementById('co-net');
+      netEl.textContent = euro(Math.abs(netta)) + (netta < 0 ? ' a credito' : ' da versare');
+      netEl.className = netta < 0 ? 'credito' : 'versare';
+    };
+    document.getElementById('co-imp').addEventListener('input', upd);
+    document.getElementById('co-aliq').addEventListener('change', upd);
+    upd();
+  }
+
+  async function saveCollaboratore(cantId, id) {
+    const desc = document.getElementById('co-desc').value.trim();
+    const imponibileStr = document.getElementById('co-imp').value;
+    const imponibile = num(imponibileStr);
+    if (!desc) { toast('Inserisci il collaboratore / prestazione'); return; }
+    // 0 è un'aliquota valida (0%); l'imponibile deve invece essere > 0.
+    if (imponibileStr.trim() === '' || !(imponibile > 0)) { toast('Inserisci l\'imponibile'); return; }
+    const c = state.cantieri.find(x => x.id === cantId);
+    c.collaboratori = c.collaboratori || [];
+    const existing = id ? c.collaboratori.find(x => x.id === id) : null;
+    let fileId = existing ? existing.fileId : null;
+    let fileName = existing ? existing.fileName : null;
+    if (pendingFile === 'REMOVE') { if (fileId) await DB.deleteFile(fileId); fileId = null; fileName = null; }
+    else if (pendingFile) { if (fileId) await DB.deleteFile(fileId); fileId = uid(); await DB.saveFile(fileId, pendingFile.blob); fileName = pendingFile.name; }
+    const data = {
+      descrizione: desc,
+      fornitore: document.getElementById('co-forn').value.trim(),
+      numeroDoc: document.getElementById('co-doc').value.trim(),
+      imponibile,
+      aliquota: num(document.getElementById('co-aliq').value),  // 0 gestito correttamente
+      data: document.getElementById('co-data').value || '',
+      fileId, fileName, pagato: existing ? !!existing.pagato : false
+    };
+    if (existing) { Object.assign(existing, data); toast('Collaboratore aggiornato'); }
+    else { c.collaboratori.unshift(Object.assign({ id: uid() }, data)); toast('Collaboratore aggiunto'); }
+    pendingFile = null;
+    persist(); closeModal(); render();
+  }
+
+  async function delCollaboratore(cantId, id) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    const idx = (c.collaboratori || []).findIndex(x => x.id === id);
+    if (idx < 0) return;
+    if (!confirm('Eliminare questa fattura collaboratore?')) return;
+    if (c.collaboratori[idx].fileId) await DB.deleteFile(c.collaboratori[idx].fileId);
+    c.collaboratori.splice(idx, 1);
+    persist(); render(); toast('Collaboratore eliminato');
+  }
+
+  function toggleCollabPagato(cantId, id) {
+    const c = state.cantieri.find(x => x.id === cantId);
+    const s = (c.collaboratori || []).find(x => x.id === id);
+    if (!s) return;
+    s.pagato = !s.pagato;
+    if (s.pagato) s.dataPagamento = todayISO();
+    persist(); render();
+    toast(s.pagato ? 'Fattura collaboratore pagata ✅' : 'Fattura collaboratore da pagare');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

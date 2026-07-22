@@ -51,6 +51,14 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
   compaiono in cima a scheda cantiere e report.
 - 🧮 **Ritenuta d'acconto** — campo opzionale sulla fattura (es. 4% ritenuta
   condominiale); l'app calcola il **netto a incassare** e lo usa nello scadenzario.
+- 🧑‍🔧 **Collaboratori** — blocco gemello di *Materiali*: registri le fatture dei
+  collaboratori/subappalti (IVA scalata a credito, imponibile sottratto dal
+  margine come i materiali), con stato pagata/da pagare e allegato.
+- 🧾 **IVA 0%** — sulle fatture in uscita (materiali e collaboratori) puoi
+  impostare esplicitamente l'aliquota **0%** (forfettari, reverse charge);
+  lo 0 è un valore valido e il totale resta pari all'imponibile.
+- 🔒 **Cassa materiali separata** — la *cassa materiali* (bonifici − materiali)
+  è un conto a sé: **non** entra nel *margine* né nei *soldi da riscuotere*.
 - 💳 **Bonifici del cliente (Acconto / Extra)** — ogni bonifico si segna come
   **Acconto** (parte del prezzo concordato: scala il *da incassare*) o **Extra**
   (lavoro aggiuntivo pagato a parte: si somma ai **ricavi**, così i materiali

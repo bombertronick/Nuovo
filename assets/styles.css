@@ -577,6 +577,7 @@ main {
 
 /* Tab rapidi nel cantiere */
 .ctabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.ctabs.ctabs-4 { grid-template-columns: repeat(2, 1fr); }
 .ctab {
   position: relative; background: var(--surface); border: 1.5px solid var(--border);
   border-radius: var(--radius); padding: 12px 4px; cursor: pointer; color: var(--text-soft);
