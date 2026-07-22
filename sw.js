@@ -1,7 +1,8 @@
-/* Service worker — cache dei file dell'app per l'uso offline.
-   I dati dell'utente vivono in IndexedDB, non qui: questo serve solo a far
-   partire l'interfaccia anche senza rete. */
-const CACHE = 'gestionale-cantieri-v1';
+/* Service worker — strategia "network-first" (prima la rete).
+   Quando sei ONLINE ricevi sempre l'ultima versione pubblicata; OFFLINE usi
+   l'ultima copia salvata. Così gli aggiornamenti si vedono subito, senza restare
+   bloccati su una versione vecchia in cache. */
+const CACHE = 'gestionale-cantieri-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -13,12 +14,16 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // Pre-carica gli asset per l'uso offline, poi attiva subito il nuovo SW.
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(ASSETS)).catch(() => {}).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -26,14 +31,17 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  // Prima la rete: prova a scaricare la versione aggiornata; se fallisce (offline)
+  // ripiega sulla cache; per le navigazioni ripiega sull'index.
   e.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req).then((res) => {
-      // aggiorna cache in background per i file dell'app
-      if (res && res.status === 200 && req.url.startsWith(self.location.origin)) {
-        const clone = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, clone));
-      }
-      return res;
-    }).catch(() => cached))
+    fetch(req)
+      .then((res) => {
+        if (res && res.status === 200 && req.url.startsWith(self.location.origin)) {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, clone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
   );
 });

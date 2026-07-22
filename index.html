@@ -39,8 +39,21 @@
   <script>
     // Service worker per uso offline (attivo solo se l'app è servita via http/https).
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      // Se c'è già un SW che controlla la pagina, un cambio di controllo = nuova
+      // versione: ricarico una sola volta per mostrarla subito.
+      if (navigator.serviceWorker.controller) {
+        let reloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloaded) return;
+          reloaded = true;
+          location.reload();
+        });
+      }
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
+        navigator.serviceWorker.register('sw.js').then((reg) => {
+          // Controlla subito se c'è un aggiornamento in attesa.
+          reg.update().catch(() => {});
+        }).catch(() => {});
       });
     }
   </script>
