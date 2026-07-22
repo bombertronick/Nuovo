@@ -8,6 +8,8 @@ dell'IVA** su materiali e utensili.
 L'app è **completamente autonoma**: nessun server, nessun account, nessun
 abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 
+**🌐 App online:** https://bombertronick.github.io/Nuovo/ — apri dal telefono e *Aggiungi a Home*.
+
 ---
 
 ## Cosa fa
