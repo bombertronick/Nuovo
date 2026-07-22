@@ -38,8 +38,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configura Pages
+      - name: Configura Pages (abilita se serve)
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Prepara i file statici
         run: |
