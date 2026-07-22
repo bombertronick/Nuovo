@@ -10,6 +10,22 @@ const iconSvg = readFileSync('icons/icon.svg', 'utf8');
 const index = readFileSync('index.html', 'utf8');
 const iconDataUri = 'data:image/svg+xml;base64,' + Buffer.from(iconSvg).toString('base64');
 
+// Icone PNG come data URI, per rendere il file singolo installabile (icona Home)
+const png = f => 'data:image/png;base64,' + readFileSync(f).toString('base64');
+const icon180 = png('icons/icon-180.png');
+const icon192 = png('icons/icon-192.png');
+const icon512 = png('icons/icon-512.png');
+// Manifest inline (data URI) così anche il file unico è una PWA installabile
+const manifestObj = {
+  name: 'Gestionale Cantieri', short_name: 'Cantieri', display: 'standalone',
+  orientation: 'portrait', background_color: '#f4f6fb', theme_color: '#1e5eff', start_url: '.',
+  icons: [
+    { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+    { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+  ]
+};
+const manifestDataUri = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifestObj));
+
 // Estrae il markup del <body> dall'index, togliendo i tag <script> esterni e
 // lo script di registrazione del service worker (non serve nel file unico).
 let body = index.match(/<body>([\s\S]*)<\/body>/)[1];
@@ -29,6 +45,8 @@ const standalone = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Cantieri">
 <link rel="icon" href="${iconDataUri}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="${icon180}">
+<link rel="manifest" href="${manifestDataUri}">
 <title>Gestionale Cantieri</title>
 <style>
 ${css}

@@ -1,13 +1,22 @@
 name: Deploy Gestionale su GitHub Pages
 
-# Pubblica l'app come sito statico su GitHub Pages ad ogni push.
-# Usa la sorgente "GitHub Actions" e prova ad abilitare Pages automaticamente.
+# Pubblica l'app come sito statico su GitHub Pages.
+#
+# ATTIVAZIONE (una tantum, da fare a mano nelle impostazioni del repo):
+#   1. Se il repository è privato e sei su piano gratuito, rendilo pubblico
+#      (Settings → General → Change visibility) — GitHub Pages gratuito
+#      funziona solo su repo pubblici.
+#   2. Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# Fatto questo, lancia il deploy da Actions → "Deploy Gestionale su GitHub
+# Pages" → "Run workflow" (oppure ad ogni push su main).
+#
+# In alternativa, senza questo workflow: Settings → Pages → "Deploy from a
+# branch" → branch corrente, cartella "/ (root)".
 
 on:
   push:
     branches:
       - main
-      - claude/app-gestionale-cantieri-o1nfxg
   workflow_dispatch:
 
 permissions:
@@ -29,10 +38,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configura Pages (abilita se serve)
+      - name: Configura Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Prepara i file statici
         run: |
