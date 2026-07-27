@@ -57,6 +57,10 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 - 🧾 **IVA 0%** — sulle fatture in uscita (materiali e collaboratori) puoi
   impostare esplicitamente l'aliquota **0%** (forfettari, reverse charge);
   lo 0 è un valore valido e il totale resta pari all'imponibile.
+- 💶 **Importo totale o imponibile** — su materiali/utensili e collaboratori puoi
+  inserire l'**importo totale (IVA inclusa)** — come lo leggi su scontrino/fattura —
+  e l'app ricava da sola l'imponibile e l'**IVA a credito da scalare** dal totale
+  IVA del cantiere. Con un tocco passi da *Totale* a *Imponibile* e viceversa.
 - 🔒 **Cassa materiali separata** — la *cassa materiali* (bonifici − materiali)
   è un conto a sé: **non** entra nel *margine* né nei *soldi da riscuotere*.
 - 💳 **Bonifici del cliente (Acconto / Extra)** — ogni bonifico si segna come
@@ -88,8 +92,8 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 2. **Aprire un cantiere** → tocca la sua scheda.
 3. Dentro il cantiere:
    - **Allega fattura d'origine** (numero, data, imponibile, aliquota IVA, foto/PDF).
-   - **Aggiungi spesa** materiale o utensile (imponibile + aliquota → l'IVA viene
-     scalata in automatico).
+   - **Aggiungi spesa** materiale o utensile: inserisci il **totale (IVA inclusa)**
+     o l'imponibile + aliquota → l'IVA viene scalata in automatico.
    - Vedi il **riepilogo IVA** del cantiere in alto.
    - **✅ Segna come completato** → il cantiere finisce in **Archivio**.
 4. **Menu ☰** (in alto a destra): scadenzario, riepilogo IVA, statistiche,

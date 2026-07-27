@@ -65,6 +65,21 @@
   function totaleOf(imponibile, aliquota) {
     return num(imponibile) + ivaOf(imponibile, aliquota);
   }
+  function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+  // Scompone un importo in imponibile/iva/totale a seconda della modalità scelta.
+  //  mode 'imponibile': l'importo digitato è l'imponibile (IVA esclusa).
+  //  mode 'totale':     l'importo digitato è il totale (IVA inclusa) → si ricava
+  //                     l'imponibile a ritroso: imponibile = totale / (1 + aliq/100).
+  // Con aliquota 0% le due modalità coincidono (imponibile = totale).
+  function scomponiImporto(amount, aliquota, mode) {
+    const a = num(amount), al = num(aliquota);
+    if (mode === 'totale') {
+      const imponibile = al === 0 ? a : a / (1 + al / 100);
+      return { imponibile, iva: a - imponibile, totale: a };
+    }
+    const iva = a * (al / 100);
+    return { imponibile: a, iva, totale: a + iva };
+  }
   // Ritenuta d'acconto (es. 4% ritenuta condominiale): calcolata sull'imponibile
   function ritenutaOf(f) { return f ? num(f.imponibile) * (num(f.ritenuta) / 100) : 0; }
   // Netto effettivamente incassato dal cliente = totale fattura − ritenuta
@@ -790,11 +805,20 @@
 
   /* ------- Form SPESA (materiale/utensile) ------- */
   let speseTipoSel = 'materiale';
+  let speseImportoMode = 'totale'; // 'imponibile' | 'totale' (IVA inclusa)
+  let collabImportoMode = 'totale'; // stessa logica per le fatture collaboratori
 
   function spesaForm(ownerId, existing) {
     // ownerId = id cantiere oppure 'generale'
     const s = existing || {};
     speseTipoSel = s.tipo || 'materiale';
+    // Modalità importo: le spese nuove partono da "Totale (IVA inclusa)" — sullo
+    // scontrino/fattura si legge il totale; l'imponibile viene ricavato a ritroso.
+    speseImportoMode = s.importoMode || (existing ? 'imponibile' : 'totale');
+    // Valore da mostrare nel campo importo, coerente con la modalità.
+    const impInit = existing != null && s.imponibile != null
+      ? (speseImportoMode === 'totale' ? round2(totaleOf(s.imponibile, s.aliquota)) : s.imponibile)
+      : '';
     pendingFile = null;
     const body = `
       <div class="field">
@@ -809,12 +833,19 @@
         <div class="field"><label>Fornitore</label><input id="sp-forn" type="text" value="${esc(s.fornitore || '')}" placeholder="Es. Elettroforniture SRL"></div>
         <div class="field"><label>N° documento</label><input id="sp-doc" type="text" value="${esc(s.numeroDoc || '')}" placeholder="Es. 1234"></div>
       </div>
+      <div class="field">
+        <label>Importo che inserisci</label>
+        <div class="seg" id="sp-mode-seg">
+          <button type="button" data-mode="totale" class="${speseImportoMode === 'totale' ? 'active' : ''}">Totale (IVA inclusa)</button>
+          <button type="button" data-mode="imponibile" class="${speseImportoMode === 'imponibile' ? 'active' : ''}">Imponibile</button>
+        </div>
+      </div>
       <div class="field-row">
-        <div class="field"><label>Imponibile (€) *</label><input id="sp-imp" type="number" inputmode="decimal" step="0.01" value="${s.imponibile != null ? s.imponibile : ''}" placeholder="0,00"></div>
+        <div class="field"><label id="sp-imp-label">${speseImportoMode === 'totale' ? 'Totale (IVA inclusa) (€) *' : 'Imponibile (€) *'}</label><input id="sp-imp" type="number" inputmode="decimal" step="0.01" value="${impInit}" placeholder="0,00"></div>
         <div class="field"><label>Aliquota IVA</label>${aliquotaSelect('sp-aliq', s.aliquota)}</div>
       </div>
       <div class="field"><label>Data</label><input id="sp-data" type="date" value="${esc(s.data || todayISO())}"></div>
-      <div class="iva-preview" id="sp-preview"><span>IVA scalata: —</span><span>Totale: —</span></div>
+      <div class="iva-preview" id="sp-preview"><span>Imponibile: —</span><span>IVA: —</span><span>Totale: —</span></div>
       <div class="iva-proj" id="sp-proj">
         <div class="proj-title">📊 Effetto sul totale IVA ${ownerId === 'generale' ? 'azienda' : 'del cantiere'}</div>
         <div class="proj-row"><span>IVA a debito ${ownerId === 'generale' ? '(fatture)' : '(fattura)'}</span><b id="sp-deb">—</b></div>
@@ -829,15 +860,33 @@
     const foot = `<button class="btn btn-ghost" data-action="close-modal">Annulla</button>
       <button class="btn btn-accent btn-block" data-action="save-spesa" data-owner="${ownerId}" data-id="${s.id || ''}">💾 Salva spesa</button>`;
     openModal(existing ? 'Modifica spesa' : 'Nuova spesa', body, foot);
-    // segmented control
+    // segmented control tipo
     document.getElementById('sp-seg').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-tipo]');
       if (!b) return;
       speseTipoSel = b.dataset.tipo;
       document.querySelectorAll('#sp-seg button').forEach(x => x.classList.toggle('active', x === b));
     });
-    wireIvaPreview('sp-imp', 'sp-aliq', 'sp-preview', 'IVA scalata');
-    wireSpesaProjection(ownerId, existing ? existing.id : null);
+    const projUpd = wireSpesaImporto(ownerId, existing ? existing.id : null, 'sp');
+    // segmented control modalità importo: converte il valore digitato nella
+    // nuova modalità così il totale/imponibile non "salta" cambiando vista.
+    document.getElementById('sp-mode-seg').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-mode]');
+      if (!b || b.dataset.mode === speseImportoMode) return;
+      const inp = document.getElementById('sp-imp');
+      const aliq = num(document.getElementById('sp-aliq').value);
+      const cur = num(inp.value);
+      if (cur) {
+        inp.value = b.dataset.mode === 'totale'
+          ? round2(totaleOf(cur, aliq))          // imponibile → totale
+          : round2(cur / (1 + aliq / 100));      // totale → imponibile
+      }
+      speseImportoMode = b.dataset.mode;
+      document.querySelectorAll('#sp-mode-seg button').forEach(x => x.classList.toggle('active', x === b));
+      document.getElementById('sp-imp-label').textContent =
+        speseImportoMode === 'totale' ? 'Totale (IVA inclusa) (€) *' : 'Imponibile (€) *';
+      projUpd();
+    });
     wireFileDrop('sp-file');
   }
 
@@ -862,31 +911,44 @@
     return { debito, credito };
   }
 
-  // Proiezione live: mostra come questa spesa incide sull'IVA netta prevista
-  function wireSpesaProjection(ownerId, escludiId) {
+  // Anteprima + proiezione IVA per i form spesa/collaboratore.
+  //   prefix = 'sp' (spesa) oppure 'co' (collaboratore) → id dei campi.
+  // Tiene conto della modalità importo (imponibile o totale IVA inclusa):
+  // scompone l'importo digitato, mostra imponibile/IVA/totale e proietta l'IVA
+  // netta del contesto. Ritorna la funzione di aggiornamento (per richiamarla
+  // quando cambia la modalità).
+  function wireSpesaImporto(ownerId, escludiId, prefix) {
     const base = baseIvaContesto(ownerId, escludiId);
+    const el = id => document.getElementById(prefix + '-' + id);
+    const getMode = () => (prefix === 'co' ? collabImportoMode : speseImportoMode);
     const upd = () => {
-      const imp = num(document.getElementById('sp-imp').value);
-      const aliq = num(document.getElementById('sp-aliq').value);
-      const thisIva = ivaOf(imp, aliq);
-      const creditoTot = base.credito + thisIva;
+      const amount = num(el('imp').value);
+      const aliq = num(el('aliq').value);
+      const { imponibile, iva, totale } = scomponiImporto(amount, aliq, getMode());
+      el('preview').innerHTML =
+        `<span>Imponibile: ${euro(imponibile)}</span><span>IVA: ${euro(iva)}</span><span>Totale: ${euro(totale)}</span>`;
+      const creditoTot = base.credito + iva;
       const netta = base.debito - creditoTot;
-      document.getElementById('sp-deb').textContent = euro(base.debito);
-      document.getElementById('sp-cre').innerHTML = euro(creditoTot) + (thisIva ? ` <span class="add">+${euro(thisIva)}</span>` : '');
-      const netEl = document.getElementById('sp-net');
+      el('deb').textContent = euro(base.debito);
+      el('cre').innerHTML = euro(creditoTot) + (iva ? ` <span class="add">+${euro(iva)}</span>` : '');
+      const netEl = el('net');
       netEl.textContent = euro(Math.abs(netta)) + (netta < 0 ? ' a credito' : ' da versare');
       netEl.className = netta < 0 ? 'credito' : 'versare';
     };
-    document.getElementById('sp-imp').addEventListener('input', upd);
-    document.getElementById('sp-aliq').addEventListener('change', upd);
+    el('imp').addEventListener('input', upd);
+    el('aliq').addEventListener('change', upd);
     upd();
+    return upd;
   }
 
   async function saveSpesa(ownerId, id) {
     const desc = document.getElementById('sp-desc').value.trim();
-    const imponibile = num(document.getElementById('sp-imp').value);
+    const amount = num(document.getElementById('sp-imp').value);
+    const aliquota = num(document.getElementById('sp-aliq').value);
     if (!desc) { toast('Inserisci una descrizione'); return; }
-    if (!imponibile) { toast('Inserisci l\'imponibile'); return; }
+    if (!(amount > 0)) { toast(speseImportoMode === 'totale' ? 'Inserisci il totale' : 'Inserisci l\'imponibile'); return; }
+    // In modalità "totale" ricavo l'imponibile a ritroso; l'IVA resta scalata.
+    const imponibile = scomponiImporto(amount, aliquota, speseImportoMode).imponibile;
 
     const list = ownerId === 'generale'
       ? (state.speseGenerali = state.speseGenerali || [])
@@ -912,7 +974,8 @@
       fornitore: document.getElementById('sp-forn').value.trim(),
       numeroDoc: document.getElementById('sp-doc').value.trim(),
       imponibile,
-      aliquota: num(document.getElementById('sp-aliq').value),
+      aliquota,
+      importoMode: speseImportoMode,
       data: document.getElementById('sp-data').value || '',
       fileId, fileName
     };
@@ -942,20 +1005,6 @@
     const v = (val === 0 || val) ? num(val) : DEFAULT_ALIQUOTA;
     const label = a => a === 0 ? '0% (esente / reverse charge)' : a + '%';
     return `<select id="${id}">${ALIQUOTE.map(a => `<option value="${a}" ${a === v ? 'selected' : ''}>${label(a)}</option>`).join('')}</select>`;
-  }
-
-  function wireIvaPreview(impId, aliqId, previewId, label) {
-    const upd = () => {
-      const imp = num(document.getElementById(impId).value);
-      const aliq = num(document.getElementById(aliqId).value);
-      const iva = ivaOf(imp, aliq);
-      const tot = totaleOf(imp, aliq);
-      document.getElementById(previewId).innerHTML =
-        `<span>${label || 'IVA'}: ${euro(iva)}</span><span>Totale: ${euro(tot)}</span>`;
-    };
-    document.getElementById(impId).addEventListener('input', upd);
-    document.getElementById(aliqId).addEventListener('change', upd);
-    upd();
   }
 
   function fileDrop(id, currentName) {
@@ -1365,11 +1414,12 @@
       if (c.preventivo === undefined) c.preventivo = null;
       if (c.fatturaOrigine && c.fatturaOrigine.incassato === undefined) c.fatturaOrigine.incassato = false;
       if (c.fatturaOrigine && c.fatturaOrigine.ritenuta === undefined) c.fatturaOrigine.ritenuta = 0;
-      c.spese.forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; });
+      c.spese.forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; if (sp.importoMode === undefined) sp.importoMode = 'imponibile'; });
+      c.collaboratori.forEach(co => { if (co.importoMode === undefined) co.importoMode = 'imponibile'; });
       c.bonifici.forEach(bn => { if (bn.tipo === undefined) bn.tipo = 'acconto'; });
       if (!c.stato) c.stato = 'attivo';
     });
-    (s.speseGenerali || []).forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; });
+    (s.speseGenerali || []).forEach(sp => { if (sp.pagato === undefined) sp.pagato = false; if (sp.importoMode === undefined) sp.importoMode = 'imponibile'; });
     return s;
   }
 
@@ -2585,6 +2635,10 @@
 
   function collaboratoreForm(cantId, existing) {
     const s = existing || {};
+    collabImportoMode = s.importoMode || (existing ? 'imponibile' : 'totale');
+    const impInit = existing != null && s.imponibile != null
+      ? (collabImportoMode === 'totale' ? round2(totaleOf(s.imponibile, s.aliquota)) : s.imponibile)
+      : '';
     pendingFile = null;
     const body = `
       <div class="field"><label>Collaboratore / prestazione *</label><input id="co-desc" type="text" value="${esc(s.descrizione || '')}" placeholder="Es. Mario Rossi / Manodopera impianto"></div>
@@ -2592,13 +2646,20 @@
         <div class="field"><label>Fornitore / ditta</label><input id="co-forn" type="text" value="${esc(s.fornitore || '')}" placeholder="Ragione sociale"></div>
         <div class="field"><label>N° fattura</label><input id="co-doc" type="text" value="${esc(s.numeroDoc || '')}" placeholder="Es. 12"></div>
       </div>
+      <div class="field">
+        <label>Importo che inserisci</label>
+        <div class="seg" id="co-mode-seg">
+          <button type="button" data-mode="totale" class="${collabImportoMode === 'totale' ? 'active' : ''}">Totale (IVA inclusa)</button>
+          <button type="button" data-mode="imponibile" class="${collabImportoMode === 'imponibile' ? 'active' : ''}">Imponibile</button>
+        </div>
+      </div>
       <div class="field-row">
-        <div class="field"><label>Imponibile (€) *</label><input id="co-imp" type="number" inputmode="decimal" step="0.01" value="${s.imponibile != null ? s.imponibile : ''}" placeholder="0,00"></div>
+        <div class="field"><label id="co-imp-label">${collabImportoMode === 'totale' ? 'Totale (IVA inclusa) (€) *' : 'Imponibile (€) *'}</label><input id="co-imp" type="number" inputmode="decimal" step="0.01" value="${impInit}" placeholder="0,00"></div>
         <div class="field"><label>Aliquota IVA</label>${aliquotaSelect('co-aliq', s.aliquota)}</div>
       </div>
       <div class="field"><label>Data</label><input id="co-data" type="date" value="${esc(s.data || todayISO())}"></div>
       <div class="hint" style="margin:-6px 0 8px">Per fatture senza IVA (forfettari, reverse charge) scegli <b>0%</b>.</div>
-      <div class="iva-preview" id="co-preview"><span>IVA scalata: —</span><span>Totale: —</span></div>
+      <div class="iva-preview" id="co-preview"><span>Imponibile: —</span><span>IVA: —</span><span>Totale: —</span></div>
       <div class="iva-proj" id="co-proj">
         <div class="proj-title">📊 Effetto sul totale IVA del cantiere</div>
         <div class="proj-row"><span>IVA a debito (fattura)</span><b id="co-deb">—</b></div>
@@ -2613,37 +2674,36 @@
     const foot = `<button class="btn btn-ghost" data-action="close-modal">Annulla</button>
       <button class="btn btn-accent btn-block" data-action="save-collab" data-owner="${cantId}" data-id="${s.id || ''}">💾 Salva collaboratore</button>`;
     openModal(existing ? 'Modifica collaboratore' : 'Nuovo collaboratore', body, foot);
-    wireIvaPreview('co-imp', 'co-aliq', 'co-preview', 'IVA scalata');
-    wireCollabProjection(cantId, existing ? existing.id : null);
-    wireFileDrop('co-file');
-  }
-
-  function wireCollabProjection(cantId, escludiId) {
-    const base = baseIvaContesto(cantId, escludiId);
-    const upd = () => {
-      const imp = num(document.getElementById('co-imp').value);
+    const projUpd = wireSpesaImporto(cantId, existing ? existing.id : null, 'co');
+    document.getElementById('co-mode-seg').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-mode]');
+      if (!b || b.dataset.mode === collabImportoMode) return;
+      const inp = document.getElementById('co-imp');
       const aliq = num(document.getElementById('co-aliq').value);
-      const thisIva = ivaOf(imp, aliq);
-      const creditoTot = base.credito + thisIva;
-      const netta = base.debito - creditoTot;
-      document.getElementById('co-deb').textContent = euro(base.debito);
-      document.getElementById('co-cre').innerHTML = euro(creditoTot) + (thisIva ? ` <span class="add">+${euro(thisIva)}</span>` : '');
-      const netEl = document.getElementById('co-net');
-      netEl.textContent = euro(Math.abs(netta)) + (netta < 0 ? ' a credito' : ' da versare');
-      netEl.className = netta < 0 ? 'credito' : 'versare';
-    };
-    document.getElementById('co-imp').addEventListener('input', upd);
-    document.getElementById('co-aliq').addEventListener('change', upd);
-    upd();
+      const cur = num(inp.value);
+      if (cur) {
+        inp.value = b.dataset.mode === 'totale'
+          ? round2(totaleOf(cur, aliq))
+          : round2(cur / (1 + aliq / 100));
+      }
+      collabImportoMode = b.dataset.mode;
+      document.querySelectorAll('#co-mode-seg button').forEach(x => x.classList.toggle('active', x === b));
+      document.getElementById('co-imp-label').textContent =
+        collabImportoMode === 'totale' ? 'Totale (IVA inclusa) (€) *' : 'Imponibile (€) *';
+      projUpd();
+    });
+    wireFileDrop('co-file');
   }
 
   async function saveCollaboratore(cantId, id) {
     const desc = document.getElementById('co-desc').value.trim();
-    const imponibileStr = document.getElementById('co-imp').value;
-    const imponibile = num(imponibileStr);
+    const amountStr = document.getElementById('co-imp').value;
+    const amount = num(amountStr);
+    const aliquota = num(document.getElementById('co-aliq').value); // 0 gestito correttamente
     if (!desc) { toast('Inserisci il collaboratore / prestazione'); return; }
-    // 0 è un'aliquota valida (0%); l'imponibile deve invece essere > 0.
-    if (imponibileStr.trim() === '' || !(imponibile > 0)) { toast('Inserisci l\'imponibile'); return; }
+    // 0 è un'aliquota valida (0%); l'importo deve invece essere > 0.
+    if (amountStr.trim() === '' || !(amount > 0)) { toast(collabImportoMode === 'totale' ? 'Inserisci il totale' : 'Inserisci l\'imponibile'); return; }
+    const imponibile = scomponiImporto(amount, aliquota, collabImportoMode).imponibile;
     const c = state.cantieri.find(x => x.id === cantId);
     c.collaboratori = c.collaboratori || [];
     const existing = id ? c.collaboratori.find(x => x.id === id) : null;
@@ -2656,7 +2716,8 @@
       fornitore: document.getElementById('co-forn').value.trim(),
       numeroDoc: document.getElementById('co-doc').value.trim(),
       imponibile,
-      aliquota: num(document.getElementById('co-aliq').value),  // 0 gestito correttamente
+      aliquota,
+      importoMode: collabImportoMode,
       data: document.getElementById('co-data').value || '',
       fileId, fileName, pagato: existing ? !!existing.pagato : false
     };

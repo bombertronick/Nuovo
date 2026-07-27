@@ -491,7 +491,8 @@ main {
 /* mini riepilogo iva nel form */
 .iva-preview {
   background: var(--primary-soft); border-radius: var(--radius-sm);
-  padding: 10px 12px; font-size: .85rem; display: flex; justify-content: space-between;
+  padding: 10px 12px; font-size: .85rem; display: flex; flex-wrap: wrap;
+  gap: 4px 14px; justify-content: space-between;
   color: var(--primary-dark); font-weight: 700; margin-top: 4px;
 }
 
