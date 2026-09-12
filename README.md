@@ -12,6 +12,18 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 
 ---
 
+## 🏢 Agent Office — studio agentico 3D
+
+Nella cartella [`ufficio/`](ufficio/) trovi una seconda app, indipendente da questa:
+un **ufficio 3D in stile cartone animato** dove gli agenti di programmazione si
+vedono come dipendenti al lavoro — scrivania, revisioni, riunioni — con Claude nel
+ruolo di **direttrice** che smista gli incarichi.
+
+**App online:** <https://bombertronick.github.io/Nuovo/ufficio/> ·
+**Documentazione:** [`ufficio/README.md`](ufficio/README.md)
+
+---
+
 ## Cosa fa
 
 - 🏗️ **Cantieri organizzati per categorie** — categorie sempre modificabili

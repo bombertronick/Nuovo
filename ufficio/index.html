@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1b2140">
+<meta name="description" content="Studio 3D per orchestrare agenti di programmazione: guardali lavorare come dipendenti di un ufficio, assegna incarichi e segui revisioni e consegne in tempo reale.">
+<title>Agent Office — Studio agentico 3D</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icona.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/ui.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.min.js",
+    "three/addons/": "./vendor/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="scene-wrap">
+  <canvas id="scena"></canvas>
+  <div id="targhette" class="label-layer"></div>
+  <div id="caricamento" class="boot">
+    <div class="boot-card">
+      <div class="boot-logo">🏢</div>
+      <h1>Agent Office</h1>
+      <p>Sto accendendo le luci dello studio…</p>
+      <div class="boot-bar"><i></i></div>
+    </div>
+  </div>
+</div>
+
+<!-- Barra superiore ------------------------------------------------- -->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">🏢</span>
+    <div class="brand-text">
+      <strong>Agent Office</strong>
+      <span id="nome-progetto">Progetto Aurora</span>
+    </div>
+  </div>
+
+  <div class="kpi" id="kpi"></div>
+
+  <div class="topbar-tools">
+    <div class="seg" id="velocita" role="group" aria-label="Velocità della simulazione">
+      <button data-speed="0" title="Pausa">⏸</button>
+      <button data-speed="1" class="on" title="Velocità normale">1×</button>
+      <button data-speed="2" title="Doppia velocità">2×</button>
+      <button data-speed="4" title="Quadrupla velocità">4×</button>
+    </div>
+    <div class="seg" id="viste" role="group" aria-label="Inquadrature">
+      <button data-view="panoramica" class="on">Panoramica</button>
+      <button data-view="scrivanie">Scrivanie</button>
+      <button data-view="riunione">Riunione</button>
+      <button data-view="direzione">Direzione</button>
+      <button data-view="lavagna">Lavagna</button>
+    </div>
+    <button class="icon-btn" id="btn-impostazioni" title="Impostazioni" aria-label="Impostazioni">⚙️</button>
+  </div>
+</header>
+
+<!-- Pannello squadra ------------------------------------------------ -->
+<section class="panel panel-left" id="pannello-squadra" data-panel="squadra">
+  <header class="panel-head">
+    <h2>👥 La squadra</h2>
+    <button class="chip-btn" id="btn-assumi">＋ Assumi</button>
+  </header>
+  <div class="panel-body" id="lista-agenti"></div>
+  <footer class="panel-foot">
+    <button class="ghost-btn" id="btn-riunione">📣 Convoca riunione</button>
+  </footer>
+</section>
+
+<!-- Pannello incarichi ---------------------------------------------- -->
+<section class="panel panel-right" id="pannello-incarichi" data-panel="incarichi">
+  <header class="panel-head">
+    <h2>📋 Bacheca incarichi</h2>
+    <button class="chip-btn" id="btn-nuovo">＋ Incarico</button>
+  </header>
+  <div class="filtri" id="filtri"></div>
+  <div class="panel-body" id="lista-incarichi"></div>
+</section>
+
+<!-- Registro attività ----------------------------------------------- -->
+<section class="panel panel-feed" id="pannello-registro" data-panel="registro">
+  <header class="panel-head">
+    <h2>📡 Registro attività</h2>
+    <button class="icon-btn small" id="btn-riduci-feed" title="Riduci">▾</button>
+  </header>
+  <div class="panel-body" id="registro"></div>
+</section>
+
+<!-- Scheda agente selezionato --------------------------------------- -->
+<aside class="dossier" id="dossier" hidden></aside>
+
+<!-- Barra di navigazione (mobile) ----------------------------------- -->
+<nav class="tabbar" id="tabbar">
+  <button data-tab="scena" class="on">🏢 Studio</button>
+  <button data-tab="squadra">👥 Squadra</button>
+  <button data-tab="incarichi">📋 Incarichi</button>
+  <button data-tab="registro">📡 Registro</button>
+</nav>
+
+<!-- Finestre modali -------------------------------------------------- -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <header class="modal-head">
+      <h3 id="modal-titolo">Titolo</h3>
+      <button class="icon-btn small" data-close aria-label="Chiudi">✕</button>
+    </header>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "Agent Office — Studio agentico 3D",
+  "short_name": "Agent Office",
+  "description": "Orchestrazione di agenti di programmazione in un ufficio 3D animato.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1428",
+  "theme_color": "#1b2140",
+  "icons": [
+    { "src": "icona.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
