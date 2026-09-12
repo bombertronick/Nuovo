@@ -159,7 +159,9 @@ function renderAgents() {
   state.agents.forEach((agent) => {
     const nodi = cardsAgenti.get(agent.id);
     if (!nodi) return;
-    const stato = STATUS_AGENTE[agent.status] || STATUS_AGENTE.inattivo;
+    // chi sta attraversando l'ufficio non è "disponibile": è in cammino
+    const inCammino = agent.body.at !== agent.body.goal;
+    const stato = inCammino ? STATUS_AGENTE.cammina : (STATUS_AGENTE[agent.status] || STATUS_AGENTE.inattivo);
     const task = agent.taskId ? getTask(agent.taskId) : null;
 
     nodi.card.classList.toggle('on', state.selectedAgentId === agent.id);
@@ -308,7 +310,9 @@ function renderDossier() {
 
   const role = ROLES[agent.role];
   const task = agent.taskId ? getTask(agent.taskId) : null;
-  const stato = STATUS_AGENTE[agent.status] || STATUS_AGENTE.inattivo;
+  const stato = (agent.body.at !== agent.body.goal)
+    ? STATUS_AGENTE.cammina
+    : (STATUS_AGENTE[agent.status] || STATUS_AGENTE.inattivo);
 
   box.hidden = false;
   box.innerHTML = `
