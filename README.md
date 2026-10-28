@@ -10,6 +10,11 @@ abbonamento. Tutti i dati restano **sul tuo dispositivo**.
 
 **🌐 App online:** https://bombertronick.github.io/Nuovo/ — apri dal telefono e *Aggiungi a Home*.
 
+> 📡 **Nel repository c'è anche [RuView Monitor](ruview/README.md)** — pannello
+> professionale per [RuView](https://github.com/ruvnet/RuView) (presenza,
+> respiro, battito, posa e allarmi tramite Wi-Fi e nodi ESP32), nella cartella
+> `ruview/`. Online: https://bombertronick.github.io/Nuovo/ruview/
+
 ---
 
 ## Cosa fa
