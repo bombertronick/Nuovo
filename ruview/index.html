@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="RuView Monitor: pannello professionale per RuView (WiFi sensing). Presenza, persone, respiro, battito, posa, nodi ESP32, allarmi e registrazioni.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RuView">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="assets/styles.css">
+  <title>RuView Monitor</title>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <img class="logo" src="icons/icon.svg" alt="" width="34" height="34">
+        <div class="brand-text">
+          <h1>RuView Monitor</h1>
+          <p class="sub" id="server-label">Non connesso</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="rec-dot" id="rec-indicator" hidden title="Registrazione in corso">● REC</span>
+        <button class="pill" id="conn-pill" data-action="goto" data-view="impostazioni" title="Stato connessione e origine dei dati">
+          <span class="pill-dot"></span><span class="pill-text">Avvio…</span>
+        </button>
+        <button class="icon-btn" data-action="fullscreen" title="Schermo intero (modalità parete)" aria-label="Schermo intero">⛶</button>
+      </div>
+    </header>
+
+    <nav class="nav" id="nav" aria-label="Sezioni">
+      <button data-view="stato" class="nav-item"><span class="ni">◉</span><span class="nl">Stato</span></button>
+      <button data-view="vitali" class="nav-item"><span class="ni">♥</span><span class="nl">Vitali</span></button>
+      <button data-view="spazio" class="nav-item"><span class="ni">✦</span><span class="nl">Spazio</span></button>
+      <button data-view="nodi" class="nav-item nav-wide"><span class="ni">⌖</span><span class="nl">Nodi</span></button>
+      <button data-view="eventi" class="nav-item"><span class="ni">⚑</span><span class="nl">Eventi</span><span class="badge" id="nav-badge" hidden>0</span></button>
+      <button data-view="registrazioni" class="nav-item nav-wide"><span class="ni">⏺</span><span class="nl">Registrazioni</span></button>
+      <button data-view="impostazioni" class="nav-item nav-wide"><span class="ni">⚙</span><span class="nl">Impostazioni</span></button>
+      <button data-view="guida" class="nav-item nav-wide"><span class="ni">?</span><span class="nl">Guida</span></button>
+      <button data-view="altro" class="nav-item nav-narrow"><span class="ni">☰</span><span class="nl">Altro</span></button>
+    </nav>
+
+    <div class="content">
+      <div class="source-banner" id="source-banner" hidden></div>
+      <div class="alert-banner" id="alert-banner" hidden></div>
+      <main id="view" tabindex="-1">
+        <div class="empty"><p>Caricamento in corso…</p></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div id="modal-root"></div>
+  <div id="print-root"></div>
+
+  <script src="assets/store.js"></script>
+  <script src="assets/client.js"></script>
+  <script src="assets/charts.js"></script>
+  <script src="assets/app.js"></script>
+  <script>
+    // Service worker per l'uso offline dell'interfaccia (solo via http/https).
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
